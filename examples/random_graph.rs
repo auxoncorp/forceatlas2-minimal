@@ -74,7 +74,7 @@ fn main() {
 	println!("{:?}", graph_size);
 	println!("{}", factor);
 
-	let root = BitMapBackend::new("graph.png", SIZE).into_drawing_area();
+	let root = BitMapBackend::new("target/graph.png", SIZE).into_drawing_area();
 	root.fill(&WHITE).unwrap();
 
 	for (h1, h2) in layout.edges.into_iter() {

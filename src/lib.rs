@@ -3,12 +3,13 @@
 
 mod util;
 
-pub use util::{clone_slice_mut, Coord, Edge, Node, PointList, Position};
+pub use util::{clone_slice_mut, Coord, Edge, Node, PointIter, PointList, Position};
 
 use itertools::izip;
 #[cfg(feature = "rand")]
 use rand::Rng;
 
+#[derive(Clone)]
 pub struct Settings<T: Coord> {
 	pub dimensions: usize,
 	pub kg: T,
@@ -249,16 +250,60 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test() {
-		let nodes: Vec<u32> = (0..5).collect();
-		let edges = vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4)];
-		let mut layout =
-			Layout::<f64>::from_graph(edges, nodes.len(), Settings::default(), (-100.0, 100.0));
+	fn test_global() {
+		let mut layout = Layout::<f64>::from_graph(
+			vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4)],
+			5,
+			Settings::default(),
+			(-100.0, 100.0),
+		);
 
 		for _ in 0..10 {
 			layout.iteration();
 		}
 
 		layout.points.iter().for_each(|pos| println!("{:?}", pos));
+	}
+
+	#[test]
+	fn test_forces() {
+		let mut layout = Layout::<f64>::from_position_graph(
+			vec![(0, 1)],
+			vec![vec![-1.0, -1.0].as_slice(), vec![1.0, 1.0].as_slice()].into_iter(),
+			Settings::default(),
+		);
+
+		layout.init_iteration();
+		layout.apply_attraction();
+
+		let speed_1 = dbg!(layout.speeds.get(0));
+		let speed_2 = dbg!(layout.speeds.get(1));
+
+		assert!(speed_1[0] > 0.0);
+		assert!(speed_1[1] > 0.0);
+		assert!(speed_2[0] < 0.0);
+		assert!(speed_2[1] < 0.0);
+
+		layout.init_iteration();
+		layout.apply_repulsion();
+
+		let speed_1 = dbg!(layout.speeds.get(0));
+		let speed_2 = dbg!(layout.speeds.get(1));
+
+		assert!(speed_1[0] < 0.0);
+		assert!(speed_1[1] < 0.0);
+		assert!(speed_2[0] > 0.0);
+		assert!(speed_2[1] > 0.0);
+
+		layout.init_iteration();
+		layout.apply_gravity();
+
+		let speed_1 = dbg!(layout.speeds.get(0));
+		let speed_2 = dbg!(layout.speeds.get(1));
+
+		assert!(speed_1[0] > 0.0);
+		assert!(speed_1[1] > 0.0);
+		assert!(speed_2[0] < 0.0);
+		assert!(speed_2[1] < 0.0);
 	}
 }
