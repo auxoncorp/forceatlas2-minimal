@@ -5,7 +5,7 @@ use rand::Rng;
 const EDGES: usize = 100_000;
 const NODES: usize = 50_000;
 
-const SIZE: (u32, u32) = (8192, 8192);
+const SIZE: (u32, u32) = (1024, 1024);
 
 const ITERATIONS: u32 = 10;
 
@@ -28,7 +28,8 @@ fn main() {
 			dimensions: 2,
 			dissuade_hubs: true,
 			kg: 1.0,
-			kr: 2.0,
+			kr: 10.0,
+			krprime: 100.0,
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,

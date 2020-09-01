@@ -33,6 +33,7 @@ pub struct Node {
 	pub degree: u32,
 }
 
+#[inline]
 pub fn norm<T: Coord>(n: &Position<T>) -> T {
 	let mut sum = T::zero();
 	for i in n.iter() {
@@ -41,6 +42,7 @@ pub fn norm<T: Coord>(n: &Position<T>) -> T {
 	sum.sqrt()
 }
 
+#[inline]
 pub fn gravity<T: Coord>(kg: T, n: &Node) -> T {
 	T::from(n.degree + 1) * kg
 }
@@ -99,17 +101,21 @@ pub struct PointList<T: Coord> {
 }
 
 impl<'a, T: Coord> PointList<T> {
+	#[inline]
 	pub fn get(&'a self, n: usize) -> &'a Position<T> {
 		let offset = n * self.dimensions;
 		&self.points[offset..offset + self.dimensions]
 	}
+	#[inline]
 	pub fn get_clone(&self, n: usize) -> Vec<T> {
 		clone_slice_mut(self.get(n))
 	}
+	#[inline]
 	pub fn get_mut(&mut self, n: usize) -> &mut Position<T> {
 		let offset = n * self.dimensions;
 		&mut self.points[offset..offset + self.dimensions]
 	}
+	#[inline]
 	pub fn set(&mut self, n: usize, val: &Position<T>) {
 		let offset = n * self.dimensions;
 		self.points[offset..offset + self.dimensions].clone_from_slice(val);

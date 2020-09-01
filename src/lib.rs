@@ -15,6 +15,7 @@ pub struct Settings<T: Coord> {
 	pub dissuade_hubs: bool,
 	pub kg: T,
 	pub kr: T,
+	pub krprime: T,
 	pub lin_log: bool,
 	pub prevent_overlapping: Option<T>,
 	pub strong_gravity: bool,
@@ -27,6 +28,7 @@ impl<T: Coord> Default for Settings<T> {
 			dissuade_hubs: false,
 			kg: T::one(),
 			kr: T::one(),
+			krprime: T::from(100),
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
@@ -197,6 +199,7 @@ impl<'a, T: Coord> Layout<T> {
 				}
 			}
 		} else {
+			// TODO prevent overlapping
 			if self.settings.dissuade_hubs {
 				for (n1, n2) in self.edges.iter() {
 					let n1_speed = self.speeds.get_mut(*n1);
@@ -264,31 +267,66 @@ impl<'a, T: Coord> Layout<T> {
 	}
 
 	fn apply_repulsion(&mut self) {
-		for (n1, n2) in self.edges.iter() {
-			let n1_pos = self.points.get(*n1);
-			let mut d2 = T::zero();
-			let mut di_v = self.points.get_clone(*n2);
-			let di = di_v.as_mut_slice();
-			for i in 0usize..self.settings.dimensions {
-				di[i] -= n1_pos[i].clone();
-				d2 += di[i].clone().pow_n(2u32);
-			}
-			if d2.is_zero() {
-				continue;
-			}
+		if let Some(node_size) = &self.settings.prevent_overlapping {
+			for (n1, n2) in self.edges.iter() {
+				let n1_pos = self.points.get(*n1);
+				let mut d2 = T::zero();
+				let mut di_v = self.points.get_clone(*n2);
+				let di = di_v.as_mut_slice();
+				for i in 0usize..self.settings.dimensions {
+					di[i] -= n1_pos[i].clone();
+					d2 += di[i].clone().pow_n(2u32);
+				}
 
-			let f = T::from(
-				(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
-					* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
-			) / d2 * self.settings.kg.clone();
+				let dprime = d2.sqrt() - node_size.clone();
+				let f = T::from(
+					(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
+						* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
+				) * if dprime.positive() {
+					self.settings.kr.clone() / dprime
+				} else if dprime.is_zero() {
+					continue;
+				} else {
+					self.settings.krprime.clone()
+				};
 
-			let n1_speed = self.speeds.get_mut(*n1);
-			for i in 0usize..self.settings.dimensions {
-				n1_speed[i] -= f.clone() * di[i].clone();
+				let n1_speed = self.speeds.get_mut(*n1);
+				for i in 0usize..self.settings.dimensions {
+					n1_speed[i] -= f.clone() * di[i].clone();
+				}
+				let n2_speed = self.speeds.get_mut(*n2);
+				for i in 0usize..self.settings.dimensions {
+					n2_speed[i] += f.clone() * di[i].clone();
+				}
 			}
-			let n2_speed = self.speeds.get_mut(*n2);
-			for i in 0usize..self.settings.dimensions {
-				n2_speed[i] += f.clone() * di[i].clone();
+		} else {
+			for (n1, n2) in self.edges.iter() {
+				let n1_pos = self.points.get(*n1);
+				let mut d2 = T::zero();
+				let mut di_v = self.points.get_clone(*n2);
+				let di = di_v.as_mut_slice();
+				for i in 0usize..self.settings.dimensions {
+					di[i] -= n1_pos[i].clone();
+					d2 += di[i].clone().pow_n(2u32);
+				}
+				if d2.is_zero() {
+					continue;
+				}
+				let d = d2.sqrt();
+
+				let f = T::from(
+					(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
+						* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
+				) / d * self.settings.kr.clone();
+
+				let n1_speed = self.speeds.get_mut(*n1);
+				for i in 0usize..self.settings.dimensions {
+					n1_speed[i] -= f.clone() * di[i].clone();
+				}
+				let n2_speed = self.speeds.get_mut(*n2);
+				for i in 0usize..self.settings.dimensions {
+					n2_speed[i] += f.clone() * di[i].clone();
+				}
 			}
 		}
 	}
