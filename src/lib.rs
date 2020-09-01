@@ -132,34 +132,68 @@ impl<'a, T: Coord> Layout<T> {
 
 	fn apply_attraction(&mut self) {
 		if self.settings.lin_log {
-			for (n1, n2) in self.edges.iter() {
-				let mut d = T::zero();
-				let mut di_v = self.points.get_clone(*n2);
-				let di = di_v.as_mut_slice();
-				for i in 0usize..self.settings.dimensions {
-					di[i] -= self.points.get(*n1)[i].clone();
-					d += di[i].clone().pow_n(2u32);
-				}
-				if d.is_zero() {
-					continue;
-				}
-				d = d.sqrt();
+			if self.settings.dissuade_hubs {
+				for (n1, n2) in self.edges.iter() {
+					let mut d = T::zero();
+					let mut di_v = self.points.get_clone(*n2);
+					let di = di_v.as_mut_slice();
+					for i in 0usize..self.settings.dimensions {
+						di[i] -= self.points.get(*n1)[i].clone();
+						d += di[i].clone().pow_n(2u32);
+					}
+					if d.is_zero() {
+						continue;
+					}
+					d = d.sqrt();
 
-				if let Some(node_size) = &self.settings.prevent_overlapping {
-					let dprime = d.clone() - node_size.clone();
-					if dprime.positive() {
-						d = dprime;
+					if let Some(node_size) = &self.settings.prevent_overlapping {
+						let dprime = d.clone() - node_size.clone();
+						if dprime.positive() {
+							d = dprime;
+						}
+					}
+					let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
+					let f = d.clone().ln_1p() / d / n1_degree;
+
+					let n1_speed = self.speeds.get_mut(*n1);
+					for i in 0usize..self.settings.dimensions {
+						n1_speed[i] += f.clone() * di[i].clone();
+					}
+					let n2_speed = self.speeds.get_mut(*n2);
+					for i in 0usize..self.settings.dimensions {
+						n2_speed[i] -= f.clone() * di[i].clone();
 					}
 				}
-				let f = d.clone().ln_1p() / d;
+			} else {
+				for (n1, n2) in self.edges.iter() {
+					let mut d = T::zero();
+					let mut di_v = self.points.get_clone(*n2);
+					let di = di_v.as_mut_slice();
+					for i in 0usize..self.settings.dimensions {
+						di[i] -= self.points.get(*n1)[i].clone();
+						d += di[i].clone().pow_n(2u32);
+					}
+					if d.is_zero() {
+						continue;
+					}
+					d = d.sqrt();
 
-				let n1_speed = self.speeds.get_mut(*n1);
-				for i in 0usize..self.settings.dimensions {
-					n1_speed[i] += f.clone() * di[i].clone();
-				}
-				let n2_speed = self.speeds.get_mut(*n2);
-				for i in 0usize..self.settings.dimensions {
-					n2_speed[i] -= f.clone() * di[i].clone();
+					if let Some(node_size) = &self.settings.prevent_overlapping {
+						let dprime = d.clone() - node_size.clone();
+						if dprime.positive() {
+							d = dprime;
+						}
+					}
+					let f = d.clone().ln_1p() / d;
+
+					let n1_speed = self.speeds.get_mut(*n1);
+					for i in 0usize..self.settings.dimensions {
+						n1_speed[i] += f.clone() * di[i].clone();
+					}
+					let n2_speed = self.speeds.get_mut(*n2);
+					for i in 0usize..self.settings.dimensions {
+						n2_speed[i] -= f.clone() * di[i].clone();
+					}
 				}
 			}
 		} else {
