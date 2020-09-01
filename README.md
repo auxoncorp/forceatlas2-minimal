@@ -9,7 +9,7 @@ Under active development, usable but uncomplete. Not yet documented nor publishe
 ## License
 
 GNU AGPL v3, CopyLeft 2020 Pascal Engélibert  
-Inspired by [python-forceatlas2](https://bazaar.launchpad.net/~mwshinn/forceatlas2-python) (GNU GPL v3, CopyLeft 2016 Max Shinn <mws41@cam.ac.uk>)  
+Implementation details inspired by [python-forceatlas2](https://bazaar.launchpad.net/~mwshinn/forceatlas2-python) (GNU GPL v3, CopyLeft 2016 Max Shinn <mws41@cam.ac.uk>), [python-fa2](https://github.com/bhargavchippada/forceatlas2) (GNU GPL v3, CopyLeft 2017 Bhargav Chippada <bhargavchippada19@gmail.com>), [Gephi](https://github.com/gephi/gephi) (GNU GPL v3 / CDDL 1.0, CopyLeft 2011 Gephi Consortium)  
 The ForceAtlas2 paper was released under CC BY, Copyright 2014 Jacomy et al.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, version 3 of the License.
