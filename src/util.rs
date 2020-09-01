@@ -1,13 +1,19 @@
 use maths_traits::{
 	algebra::group_like::{
 		additive::{Sub, Zero},
-		multiplicative::Div,
+		multiplicative::{Div, DivAssign},
 	},
 	analysis::{ordered::Signed, RealExponential},
 };
 
-pub trait Coord =
-	Clone + Div<Self, Output = Self> + From<u32> + Signed + RealExponential + Sub<Self> + Zero;
+pub trait Coord = Clone
+	+ Div<Self, Output = Self>
+	+ DivAssign<Self>
+	+ From<u32>
+	+ Signed
+	+ RealExponential
+	+ Sub<Self>
+	+ Zero;
 
 /// Position of N dimensions
 pub type Position<T> = [T];

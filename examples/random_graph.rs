@@ -26,6 +26,7 @@ fn main() {
 		NODES,
 		Settings {
 			dimensions: 2,
+			dissuade_hubs: true,
 			kg: 1.0,
 			kr: 1.0,
 			lin_log: false,
@@ -112,7 +113,7 @@ fn main() {
 					((pos[1] - min[1]) * factor).to_int_unchecked::<i32>(),
 				)
 			},
-			4,
+			2,
 			Into::<ShapeStyle>::into(&RED).filled(),
 		))
 		.unwrap();

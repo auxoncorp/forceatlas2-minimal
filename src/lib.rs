@@ -12,6 +12,7 @@ use rand::Rng;
 #[derive(Clone)]
 pub struct Settings<T: Coord> {
 	pub dimensions: usize,
+	pub dissuade_hubs: bool,
 	pub kg: T,
 	pub kr: T,
 	pub lin_log: bool,
@@ -23,6 +24,7 @@ impl<T: Coord> Default for Settings<T> {
 	fn default() -> Self {
 		Self {
 			dimensions: 2,
+			dissuade_hubs: false,
 			kg: T::one(),
 			kr: T::one(),
 			lin_log: false,
@@ -161,18 +163,37 @@ impl<'a, T: Coord> Layout<T> {
 				}
 			}
 		} else {
-			for (n1, n2) in self.edges.iter() {
-				let n1_speed = self.speeds.get_mut(*n1);
-				let n1_pos = self.points.get(*n1).clone();
-				let mut di_v = self.points.get_clone(*n2);
-				let di = di_v.as_mut_slice();
-				for i in 0usize..self.settings.dimensions {
-					di[i] -= n1_pos[i].clone();
-					n1_speed[i] += di[i].clone();
+			if self.settings.dissuade_hubs {
+				for (n1, n2) in self.edges.iter() {
+					let n1_speed = self.speeds.get_mut(*n1);
+					let n1_pos = self.points.get(*n1).clone();
+					let mut di_v = self.points.get_clone(*n2);
+					let di = di_v.as_mut_slice();
+					let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
+					for i in 0usize..self.settings.dimensions {
+						di[i] -= n1_pos[i].clone();
+						di[i] /= n1_degree.clone();
+						n1_speed[i] += di[i].clone();
+					}
+					let n2_speed = self.speeds.get_mut(*n2);
+					for i in 0usize..self.settings.dimensions {
+						n2_speed[i] -= di[i].clone();
+					}
 				}
-				let n2_speed = self.speeds.get_mut(*n2);
-				for i in 0usize..self.settings.dimensions {
-					n2_speed[i] -= di[i].clone();
+			} else {
+				for (n1, n2) in self.edges.iter() {
+					let n1_speed = self.speeds.get_mut(*n1);
+					let n1_pos = self.points.get(*n1).clone();
+					let mut di_v = self.points.get_clone(*n2);
+					let di = di_v.as_mut_slice();
+					for i in 0usize..self.settings.dimensions {
+						di[i] -= n1_pos[i].clone();
+						n1_speed[i] += di[i].clone();
+					}
+					let n2_speed = self.speeds.get_mut(*n2);
+					for i in 0usize..self.settings.dimensions {
+						n2_speed[i] -= di[i].clone();
+					}
 				}
 			}
 		}
