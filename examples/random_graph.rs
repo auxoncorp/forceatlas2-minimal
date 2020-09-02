@@ -34,7 +34,6 @@ fn main() {
 			prevent_overlapping: None,
 			strong_gravity: false,
 		},
-		(-10000.0, 10000.0),
 	);
 
 	for _ in 0..ITERATIONS {

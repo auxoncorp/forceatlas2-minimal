@@ -1,10 +1,11 @@
 use maths_traits::{
 	algebra::group_like::{
-		additive::{Sub, Zero},
+		additive::Sub,
 		multiplicative::{Div, DivAssign},
 	},
 	analysis::{ordered::Signed, RealExponential},
 };
+use rand::Rng;
 
 pub trait Coord = Clone
 	+ Div<Self, Output = Self>
@@ -12,8 +13,7 @@ pub trait Coord = Clone
 	+ From<u32>
 	+ Signed
 	+ RealExponential
-	+ Sub<Self>
-	+ Zero;
+	+ Sub<Self>;
 
 /// Position of N dimensions
 pub type Position<T> = [T];
@@ -134,6 +134,28 @@ impl<'a, T: Coord> PointList<T> {
 			offset: 0,
 		}
 	}
+}
+
+#[cfg(feature = "rand")]
+pub fn sample_unit_nsphere<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
+	rng: &mut R,
+	n: usize,
+) -> Vec<T>
+where
+	rand::distributions::Standard: rand::distributions::Distribution<T>,
+	T: rand::distributions::uniform::SampleUniform,
+{
+	let mut v = valloc(n);
+	let mut d = T::zero();
+	for x in v.iter_mut() {
+		*x = rng.gen_range(T::one().neg(), T::one());
+		d += x.clone().pow_n(2u32);
+	}
+	d = d.sqrt();
+	for x in v.iter_mut() {
+		*x /= d.clone();
+	}
+	v
 }
 
 #[cfg(test)]

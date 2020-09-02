@@ -6,8 +6,6 @@ mod util;
 pub use util::{clone_slice_mut, Coord, Edge, Node, PointIter, PointList, Position};
 
 use itertools::izip;
-#[cfg(feature = "rand")]
-use rand::Rng;
 
 #[derive(Clone)]
 pub struct Settings<T: Coord> {
@@ -46,12 +44,7 @@ pub struct Layout<T: Coord> {
 
 impl<'a, T: Coord> Layout<T> {
 	#[cfg(feature = "rand")]
-	pub fn from_graph(
-		edges: Vec<Edge>,
-		nb_nodes: usize,
-		settings: Settings<T>,
-		rand_range: (T, T),
-	) -> Self
+	pub fn from_graph(edges: Vec<Edge>, nb_nodes: usize, settings: Settings<T>) -> Self
 	where
 		rand::distributions::Standard: rand::distributions::Distribution<T>,
 		T: rand::distributions::uniform::SampleUniform,
@@ -69,8 +62,8 @@ impl<'a, T: Coord> Layout<T> {
 				dimensions: settings.dimensions,
 				points: {
 					let mut rng = rand::thread_rng();
-					(0..nb)
-						.map(|_| rng.gen_range(rand_range.0.clone(), rand_range.1.clone()))
+					(0..nb_nodes)
+						.flat_map(|_| util::sample_unit_nsphere(&mut rng, settings.dimensions))
 						.collect()
 				},
 			},
@@ -459,7 +452,6 @@ mod tests {
 			vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4)],
 			5,
 			Settings::default(),
-			(-100.0, 100.0),
 		);
 
 		for _ in 0..10 {
