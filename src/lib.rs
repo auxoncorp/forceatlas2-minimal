@@ -347,9 +347,9 @@ impl<'a, T: Coord> Layout<T> {
 				self.points.iter(),
 				self.speeds.iter_mut()
 			) {
-				let f = util::gravity(self.settings.kg.clone(), n);
+				let f = T::from(n.degree + 1) * self.settings.kg.clone();
 				for i in 0usize..self.settings.dimensions {
-					speed[i] += pos[i].clone() - f.clone() * pos[i].clone();
+					speed[i] -= f.clone() * pos[i].clone();
 				}
 			}
 		} else {
@@ -362,9 +362,9 @@ impl<'a, T: Coord> Layout<T> {
 				if d.is_zero() {
 					continue;
 				}
-				let f = util::gravity(self.settings.kg.clone(), n) / d;
+				let f = T::from(n.degree + 1) * self.settings.kg.clone() / d;
 				for i in 0usize..self.settings.dimensions {
-					speed[i] += pos[i].clone() - f.clone() * pos[i].clone();
+					speed[i] -= f.clone() * pos[i].clone();
 				}
 			}
 		}
@@ -501,5 +501,36 @@ mod tests {
 		assert!(speed_1[1] > 0.0);
 		assert!(speed_2[0] < 0.0);
 		assert!(speed_2[1] < 0.0);
+	}
+
+	#[test]
+	fn test_convergence() {
+		let mut layout = Layout::<f64>::from_position_graph(
+			vec![(0, 1), (1, 2)],
+			vec![
+				vec![-1.1, -1.0].as_slice(),
+				vec![0.0, 0.0].as_slice(),
+				vec![1.0, 1.0].as_slice(),
+			]
+			.into_iter(),
+			Settings {
+				dimensions: 2,
+				dissuade_hubs: false,
+				kg: 3.0,
+				kr: 1.0,
+				krprime: 100.0,
+				lin_log: false,
+				prevent_overlapping: None,
+				strong_gravity: false,
+			},
+		);
+
+		for _ in 0..10 {
+			layout.iteration();
+
+			let point_1 = layout.points.get(0);
+			let point_2 = layout.points.get(1);
+			dbg!(((point_2[0] - point_1[0]).powi(2) + (point_2[1] - point_1[1]).powi(2)).sqrt());
+		}
 	}
 }

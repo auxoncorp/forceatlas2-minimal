@@ -42,11 +42,6 @@ pub fn norm<T: Coord>(n: &Position<T>) -> T {
 	sum.sqrt()
 }
 
-#[inline]
-pub fn gravity<T: Coord>(kg: T, n: &Node) -> T {
-	T::from(n.degree + 1) * kg
-}
-
 /// Allocate Vec without initializing
 #[inline]
 pub fn valloc<T>(n: usize) -> Vec<T> {
