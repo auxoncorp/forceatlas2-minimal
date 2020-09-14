@@ -11,6 +11,7 @@ rand = {version = "0.7.3", optional = true}
 
 [dev-dependencies]
 plotters = "0.2.15"
+stl = {git = "https://github.com/etrombly/rust-stl"}
 
 [features]
 default = ["rand"]

@@ -13,9 +13,9 @@ pub struct Settings<T: Coord> {
 	pub dissuade_hubs: bool,
 	pub kg: T,
 	pub kr: T,
-	pub krprime: T,
 	pub lin_log: bool,
-	pub prevent_overlapping: Option<T>,
+	/// (node_size, kr_prime)
+	pub prevent_overlapping: Option<(T, T)>,
 	pub strong_gravity: bool,
 }
 
@@ -26,7 +26,6 @@ impl<T: Coord> Default for Settings<T> {
 			dissuade_hubs: false,
 			kg: T::one(),
 			kr: T::one(),
-			krprime: T::from(100),
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
@@ -42,7 +41,7 @@ pub struct Layout<T: Coord> {
 	speeds: PointList<T>,
 }
 
-impl<'a, T: Coord> Layout<T> {
+impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 	#[cfg(feature = "rand")]
 	pub fn from_graph(edges: Vec<Edge>, nb_nodes: usize, settings: Settings<T>) -> Self
 	where
@@ -126,16 +125,17 @@ impl<'a, T: Coord> Layout<T> {
 	}
 
 	fn apply_attraction(&mut self) {
-		if let Some(node_size) = &self.settings.prevent_overlapping {
+		if let Some((node_size, _)) = &self.settings.prevent_overlapping {
 			if self.settings.lin_log {
 				if self.settings.dissuade_hubs {
 					// PO LOG DH
 					for (n1, n2) in self.edges.iter() {
 						let mut d = T::zero();
+						let n1_pos = self.points.get(*n1);
 						let mut di_v = self.points.get_clone(*n2);
 						let di = di_v.as_mut_slice();
 						for i in 0usize..self.settings.dimensions {
-							di[i] -= self.points.get(*n1)[i].clone();
+							di[i] -= n1_pos[i].clone();
 							d += di[i].clone().pow_n(2u32);
 						}
 						d = d.sqrt();
@@ -160,10 +160,11 @@ impl<'a, T: Coord> Layout<T> {
 					// PO LOG --
 					for (n1, n2) in self.edges.iter() {
 						let mut d = T::zero();
+						let n1_pos = self.points.get(*n1);
 						let mut di_v = self.points.get_clone(*n2);
 						let di = di_v.as_mut_slice();
 						for i in 0usize..self.settings.dimensions {
-							di[i] -= self.points.get(*n1)[i].clone();
+							di[i] -= n1_pos[i].clone();
 							d += di[i].clone().pow_n(2u32);
 						}
 						d = d.sqrt();
@@ -189,7 +190,7 @@ impl<'a, T: Coord> Layout<T> {
 					// PO --- DH
 					for (n1, n2) in self.edges.iter() {
 						let mut d = T::zero();
-						let n1_pos = self.points.get(*n1).clone();
+						let n1_pos = self.points.get(*n1);
 						let mut di_v = self.points.get_clone(*n2);
 						let di = di_v.as_mut_slice();
 						for i in 0usize..self.settings.dimensions {
@@ -200,6 +201,7 @@ impl<'a, T: Coord> Layout<T> {
 
 						let dprime = d - node_size.clone();
 						if dprime.non_positive() {
+							dbg!(dprime);
 							continue;
 						}
 						let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
@@ -371,7 +373,7 @@ impl<'a, T: Coord> Layout<T> {
 	}
 
 	fn apply_repulsion(&mut self) {
-		if let Some(node_size) = &self.settings.prevent_overlapping {
+		if let Some((node_size, krprime)) = &self.settings.prevent_overlapping {
 			for (n1, n2) in self.edges.iter() {
 				let n1_pos = self.points.get(*n1);
 				let mut d2 = T::zero();
@@ -391,7 +393,7 @@ impl<'a, T: Coord> Layout<T> {
 				} else if dprime.is_zero() {
 					continue;
 				} else {
-					self.settings.krprime.clone()
+					krprime.clone()
 				};
 
 				let n1_speed = self.speeds.get_mut(*n1);
@@ -518,7 +520,6 @@ mod tests {
 				dissuade_hubs: false,
 				kg: 3.0,
 				kr: 1.0,
-				krprime: 100.0,
 				lin_log: false,
 				prevent_overlapping: None,
 				strong_gravity: false,

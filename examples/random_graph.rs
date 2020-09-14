@@ -29,7 +29,6 @@ fn main() {
 			dissuade_hubs: true,
 			kg: 1.0,
 			kr: 10.0,
-			krprime: 100.0,
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
