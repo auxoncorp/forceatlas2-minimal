@@ -15,7 +15,7 @@ pub trait Coord = Clone
 	+ RealExponential
 	+ Sub<Self>;
 
-/// Position of N dimensions
+/// n-dimensional position
 pub type Position<T> = [T];
 
 pub fn clone_slice_mut<'a, T: Clone>(s: &'a [T]) -> Vec<T> {
@@ -131,6 +131,9 @@ impl<'a, T: Coord> PointList<T> {
 	}
 }
 
+/// Uniform random distribution of points on a n-sphere
+///
+/// `n` is the number of spatial dimensions (1 => two points; 2 => circle; 3 => sphere; etc.).
 #[cfg(feature = "rand")]
 pub fn sample_unit_nsphere<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
 	rng: &mut R,

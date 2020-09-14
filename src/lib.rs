@@ -3,19 +3,28 @@
 
 mod util;
 
-pub use util::{clone_slice_mut, Coord, Edge, Node, PointIter, PointList, Position};
+pub use util::{Coord, Edge, Node, PointIter, PointIterMut, PointList, Position};
 
 use itertools::izip;
 
 #[derive(Clone)]
 pub struct Settings<T: Coord> {
+	/// Number of spatial dimensions
 	pub dimensions: usize,
+	/// Move hubs (high degree nodes) to the center
 	pub dissuade_hubs: bool,
+	/// Gravity coefficient
 	pub kg: T,
+	/// Repulsion coefficient
 	pub kr: T,
+	/// Logarithmic attraction
 	pub lin_log: bool,
-	/// (node_size, kr_prime)
+	/// Prevent node overlapping for a prettier graph (node_size, kr_prime)
+	///
+	/// `node_size` is the radius around a node where the repulsion coefficient is `kr_prime`.
+	/// `kr_prime` is arbitrarily set to `100.0` in Gephi implementation.
 	pub prevent_overlapping: Option<(T, T)>,
+	/// Gravity does not decrease with distance, resulting in a more compact graph
 	pub strong_gravity: bool,
 }
 
@@ -36,12 +45,14 @@ impl<T: Coord> Default for Settings<T> {
 pub struct Layout<T: Coord> {
 	pub edges: Vec<Edge>,
 	pub nodes: Vec<Node>,
+	/// List of the nodes' positions
 	pub points: PointList<T>,
 	pub settings: Settings<T>,
 	speeds: PointList<T>,
 }
 
 impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
+	/// Instanciates a randomly positioned layout from a directed graph
 	#[cfg(feature = "rand")]
 	pub fn from_graph(edges: Vec<Edge>, nb_nodes: usize, settings: Settings<T>) -> Self
 	where
@@ -74,6 +85,7 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 		}
 	}
 
+	/// Instanciates layout from a directed graph, using initial positions
 	pub fn from_position_graph<I: Iterator<Item = &'a Position<T>>>(
 		edges: Vec<Edge>,
 		nodes: I,
@@ -110,6 +122,7 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 		}
 	}
 
+	/// Computes an iteration of ForceAtlas2
 	pub fn iteration(&mut self) {
 		self.init_iteration();
 		self.apply_attraction();
