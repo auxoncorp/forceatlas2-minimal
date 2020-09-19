@@ -211,13 +211,13 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 						}
 						d = d.sqrt();
 
-						let dprime = d - node_size.clone();
+						let dprime = d.clone() - node_size.clone();
 						if dprime.non_positive() {
 							dbg!(dprime);
 							continue;
 						}
 						let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
-						let f = dprime / n1_degree;
+						let f = dprime / d / n1_degree;
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -241,11 +241,11 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 						}
 						d = d.sqrt();
 
-						let dprime = d - node_size.clone();
+						let dprime = d.clone() - node_size.clone();
 						if dprime.non_positive() {
 							continue;
 						}
-						let f = dprime;
+						let f = dprime / d;
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -388,25 +388,26 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 		if let Some((node_size, krprime)) = &self.settings.prevent_overlapping {
 			for (n1, n2) in self.edges.iter() {
 				let n1_pos = self.points.get(*n1);
-				let mut d2 = T::zero();
+				let mut d = T::zero();
 				let mut di_v = self.points.get_clone(*n2);
 				let di = di_v.as_mut_slice();
 				for i in 0usize..self.settings.dimensions {
 					di[i] -= n1_pos[i].clone();
-					d2 += di[i].clone().pow_n(2u32);
+					d += di[i].clone().pow_n(2u32);
 				}
+				d = d.sqrt();
 
-				let dprime = d2.sqrt() - node_size.clone();
-				let f = T::from(
-					(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
-						* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
-				) * if dprime.positive() {
+				let dprime = d.clone() - node_size.clone();
+				let f = if dprime.positive() {
 					self.settings.kr.clone() / dprime
 				} else if dprime.is_zero() {
 					continue;
 				} else {
 					krprime.clone()
-				};
+				} * T::from(
+					(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
+						* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
+				) / d;
 
 				let n1_speed = self.speeds.get_mut(*n1);
 				for i in 0usize..self.settings.dimensions {
