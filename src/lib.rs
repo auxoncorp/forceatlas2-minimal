@@ -1,4 +1,3 @@
-#![feature(maybe_uninit_ref)]
 #![feature(trait_alias)]
 
 mod util;

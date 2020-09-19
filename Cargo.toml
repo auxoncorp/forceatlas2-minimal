@@ -7,10 +7,10 @@ edition = "2018"
 [dependencies]
 itertools = "0.9.0"
 maths-traits = "0.2.1"
-rand = {version = "0.7.3", optional = true}
+rand = { version = "0.7.3", optional = true }
 
 [dev-dependencies]
-plotters = "0.2.15"
+plotters = "0.3.0"
 stl = {git = "https://github.com/etrombly/rust-stl"}
 
 [features]
