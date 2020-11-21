@@ -2,8 +2,8 @@ use forceatlas2::*;
 use plotters::prelude::*;
 use rand::Rng;
 
-const EDGES: usize = 100_000;
-const NODES: usize = 50_000;
+const EDGES: usize = 10_000;
+const NODES: usize = 5_000;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
@@ -11,6 +11,7 @@ const ITERATIONS: u32 = 10;
 
 fn main() {
 	let mut rng = rand::thread_rng();
+	eprintln!("Generating graph...");
 	let edges = (0..EDGES)
 		.map(|_| {
 			let edge = (rng.gen_range(0usize, NODES), rng.gen_range(0, NODES));
@@ -35,6 +36,7 @@ fn main() {
 		},
 	);
 
+	eprintln!("Computing layout...");
 	for _ in 0..ITERATIONS {
 		layout.iteration();
 	}

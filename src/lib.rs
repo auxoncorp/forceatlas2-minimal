@@ -386,65 +386,69 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 
 	fn apply_repulsion(&mut self) {
 		if let Some((node_size, krprime)) = &self.settings.prevent_overlapping {
-			for (n1, n2) in self.edges.iter() {
-				let n1_pos = self.points.get(*n1);
-				let mut d = T::zero();
-				let mut di_v = self.points.get_clone(*n2);
-				let di = di_v.as_mut_slice();
-				for i in 0usize..self.settings.dimensions {
-					di[i] -= n1_pos[i].clone();
-					d += di[i].clone().pow_n(2u32);
-				}
-				d = d.sqrt();
+			for n1 in 0..self.nodes.len() - 1 {
+				let n1_pos = self.points.get(n1);
+				for n2 in n1 + 1..self.nodes.len() {
+					let mut d = T::zero();
+					let mut di_v = self.points.get_clone(n2);
+					let di = di_v.as_mut_slice();
+					for i in 0usize..self.settings.dimensions {
+						di[i] -= n1_pos[i].clone();
+						d += di[i].clone().pow_n(2u32);
+					}
+					d = d.sqrt();
 
-				let dprime = d.clone() - node_size.clone();
-				let f = if dprime.positive() {
-					self.settings.kr.clone() / dprime
-				} else if dprime.is_zero() {
-					continue;
-				} else {
-					krprime.clone()
-				} * T::from(
-					(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
-						* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
-				) / d;
+					let dprime = d.clone() - node_size.clone();
+					let f = if dprime.positive() {
+						self.settings.kr.clone() / dprime
+					} else if dprime.is_zero() {
+						continue;
+					} else {
+						krprime.clone()
+					} * T::from(
+						(unsafe { self.nodes.get_unchecked(n1) }.degree + 1)
+							* (unsafe { self.nodes.get_unchecked(n2) }.degree + 1),
+					) / d;
 
-				let n1_speed = self.speeds.get_mut(*n1);
-				for i in 0usize..self.settings.dimensions {
-					n1_speed[i] -= f.clone() * di[i].clone();
-				}
-				let n2_speed = self.speeds.get_mut(*n2);
-				for i in 0usize..self.settings.dimensions {
-					n2_speed[i] += f.clone() * di[i].clone();
+					let n1_speed = self.speeds.get_mut(n1);
+					for i in 0usize..self.settings.dimensions {
+						n1_speed[i] -= f.clone() * di[i].clone();
+					}
+					let n2_speed = self.speeds.get_mut(n2);
+					for i in 0usize..self.settings.dimensions {
+						n2_speed[i] += f.clone() * di[i].clone();
+					}
 				}
 			}
 		} else {
-			for (n1, n2) in self.edges.iter() {
-				let n1_pos = self.points.get(*n1);
-				let mut d2 = T::zero();
-				let mut di_v = self.points.get_clone(*n2);
-				let di = di_v.as_mut_slice();
-				for i in 0usize..self.settings.dimensions {
-					di[i] -= n1_pos[i].clone();
-					d2 += di[i].clone().pow_n(2u32);
-				}
-				if d2.is_zero() {
-					continue;
-				}
-				let d = d2.sqrt();
+			for n1 in 0..self.nodes.len() - 1 {
+				let n1_pos = self.points.get(n1);
+				for n2 in n1 + 1..self.nodes.len() {
+					let mut d2 = T::zero();
+					let mut di_v = self.points.get_clone(n2);
+					let di = di_v.as_mut_slice();
+					for i in 0usize..self.settings.dimensions {
+						di[i] -= n1_pos[i].clone();
+						d2 += di[i].clone().pow_n(2u32);
+					}
+					if d2.is_zero() {
+						continue;
+					}
+					let d = d2.sqrt();
 
-				let f = T::from(
-					(unsafe { self.nodes.get_unchecked(*n1) }.degree + 1)
-						* (unsafe { self.nodes.get_unchecked(*n2) }.degree + 1),
-				) / d * self.settings.kr.clone();
+					let f = T::from(
+						(unsafe { self.nodes.get_unchecked(n1) }.degree + 1)
+							* (unsafe { self.nodes.get_unchecked(n2) }.degree + 1),
+					) / d * self.settings.kr.clone();
 
-				let n1_speed = self.speeds.get_mut(*n1);
-				for i in 0usize..self.settings.dimensions {
-					n1_speed[i] -= f.clone() * di[i].clone();
-				}
-				let n2_speed = self.speeds.get_mut(*n2);
-				for i in 0usize..self.settings.dimensions {
-					n2_speed[i] += f.clone() * di[i].clone();
+					let n1_speed = self.speeds.get_mut(n1);
+					for i in 0usize..self.settings.dimensions {
+						n1_speed[i] -= f.clone() * di[i].clone();
+					}
+					let n2_speed = self.speeds.get_mut(n2);
+					for i in 0usize..self.settings.dimensions {
+						n2_speed[i] += f.clone() * di[i].clone();
+					}
 				}
 			}
 		}
@@ -474,6 +478,40 @@ mod tests {
 		}
 
 		layout.points.iter().for_each(|pos| println!("{:?}", pos));
+	}
+
+	#[test]
+	fn test_apply_forces() {
+		let mut layout = Layout::<f64>::from_position_graph(
+			vec![(0, 1)],
+			vec![vec![-1.0, -1.0].as_slice(), vec![1.0, 1.0].as_slice()].into_iter(),
+			Settings::default(),
+		);
+		layout
+			.speeds
+			.points
+			.iter_mut()
+			.enumerate()
+			.for_each(|(i, s)| *s += i as f64);
+		layout.apply_forces();
+		assert_eq!(layout.points.points, vec![-1.0, 0.0, 3.0, 4.0]);
+	}
+
+	#[test]
+	fn test_init_iteration() {
+		let mut layout = Layout::<f64>::from_position_graph(
+			vec![(0, 1)],
+			vec![vec![-1.0, -1.0].as_slice(), vec![1.0, 1.0].as_slice()].into_iter(),
+			Settings::default(),
+		);
+		layout
+			.speeds
+			.points
+			.iter_mut()
+			.enumerate()
+			.for_each(|(i, s)| *s += i as f64);
+		layout.init_iteration();
+		assert_eq!(layout.speeds.points, vec![0.0, 0.0, 0.0, 0.0]);
 	}
 
 	#[test]
@@ -540,8 +578,19 @@ mod tests {
 		);
 
 		for _ in 0..10 {
+			/*println!("new iteration");
+			layout.init_iteration();
+			layout.apply_attraction();
+			println!("{:?}", layout.speeds.points);
+			layout.init_iteration();
+			layout.apply_repulsion();
+			println!("{:?}", layout.speeds.points);
+			layout.init_iteration();
+			layout.apply_gravity();
+			println!("{:?}", layout.speeds.points);*/
 			layout.iteration();
 
+			dbg!(&layout.points.points);
 			let point_1 = layout.points.get(0);
 			let point_2 = layout.points.get(1);
 			dbg!(((point_2[0] - point_1[0]).powi(2) + (point_2[1] - point_1[1]).powi(2)).sqrt());
