@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use forceatlas2::*;
 use rand::Rng;
 use std::{f32::consts::PI, fs::File, io::Read};
@@ -257,6 +259,7 @@ fn main() {
 			lin_log: false,
 			prevent_overlapping: Some((NODE_RADIUS as f64, 100.0)),
 			strong_gravity: false,
+			barnes_hut: Some(0.5),
 		},
 	);
 

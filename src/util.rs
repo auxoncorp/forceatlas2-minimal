@@ -5,6 +5,7 @@ use maths_traits::{
 	},
 	analysis::{ordered::Signed, RealExponential},
 };
+#[cfg(feature = "rand")]
 use rand::Rng;
 
 pub trait Coord = Clone

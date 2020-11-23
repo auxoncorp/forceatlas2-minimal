@@ -2,12 +2,13 @@ use forceatlas2::*;
 use plotters::prelude::*;
 use rand::Rng;
 
-const EDGES: usize = 10_000;
+const EDGES: usize = 50_000;
 const NODES: usize = 5_000;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
-const ITERATIONS: u32 = 10;
+const ITERATIONS: u32 = 50;
+const ANIM_MODE: bool = false;
 
 fn main() {
 	let mut rng = rand::thread_rng();
@@ -33,14 +34,22 @@ fn main() {
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
+			barnes_hut: Some(0.9),
 		},
 	);
 
 	eprintln!("Computing layout...");
-	for _ in 0..ITERATIONS {
+	for i in 0..ITERATIONS {
+		if ANIM_MODE {
+			draw_graph(&layout, i);
+		}
+		println!("{}/{}", i, ITERATIONS);
 		layout.iteration();
 	}
+	draw_graph(&layout, ITERATIONS);
+}
 
+fn draw_graph(layout: &Layout<f64>, iteration: u32) {
 	let mut min_v = layout.points.get_clone(0);
 	let mut max_v = min_v.clone();
 	let min = min_v.as_mut_slice();
@@ -73,37 +82,44 @@ fn main() {
 			factors.0
 		}
 	};
-	println!("{:?}", graph_size);
-	println!("{}", factor);
+	println!("size:  {:?}", graph_size);
+	println!("scale: {}", factor);
 
-	let root = BitMapBackend::new("target/graph.png", SIZE).into_drawing_area();
+	let path = if ANIM_MODE {
+		format!("target/graph-{}.png", iteration)
+	} else {
+		"target/graph.png".into()
+	};
+	let root = BitMapBackend::new(&path, SIZE).into_drawing_area();
 	root.fill(&WHITE).unwrap();
 
-	for (h1, h2) in layout.edges.into_iter() {
-		root.draw(&PathElement::new(
-			vec![
-				{
-					let pos = layout.points.get(h1);
-					unsafe {
-						(
-							((pos[0] - min[0]) * factor).to_int_unchecked::<i32>(),
-							((pos[1] - min[1]) * factor).to_int_unchecked::<i32>(),
-						)
-					}
-				},
-				{
-					let pos = layout.points.get(h2);
-					unsafe {
-						(
-							((pos[0] - min[0]) * factor).to_int_unchecked::<i32>(),
-							((pos[1] - min[1]) * factor).to_int_unchecked::<i32>(),
-						)
-					}
-				},
-			],
-			Into::<ShapeStyle>::into(&BLACK).filled(),
-		))
-		.unwrap();
+	if !ANIM_MODE {
+		for (h1, h2) in layout.edges.iter() {
+			root.draw(&PathElement::new(
+				vec![
+					{
+						let pos = layout.points.get(*h1);
+						unsafe {
+							(
+								((pos[0] - min[0]) * factor).to_int_unchecked::<i32>(),
+								((pos[1] - min[1]) * factor).to_int_unchecked::<i32>(),
+							)
+						}
+					},
+					{
+						let pos = layout.points.get(*h2);
+						unsafe {
+							(
+								((pos[0] - min[0]) * factor).to_int_unchecked::<i32>(),
+								((pos[1] - min[1]) * factor).to_int_unchecked::<i32>(),
+							)
+						}
+					},
+				],
+				Into::<ShapeStyle>::into(&BLACK).filled(),
+			))
+			.unwrap();
+		}
 	}
 
 	for pos in layout.points.iter() {

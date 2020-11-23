@@ -1,4 +1,6 @@
+#![feature(specialization)]
 #![feature(trait_alias)]
+#![allow(incomplete_features)]
 
 mod util;
 
@@ -18,13 +20,19 @@ pub struct Settings<T: Coord> {
 	pub kr: T,
 	/// Logarithmic attraction
 	pub lin_log: bool,
-	/// Prevent node overlapping for a prettier graph (node_size, kr_prime)
+	/// Prevent node overlapping for a prettier graph (node_size, kr_prime).
 	///
 	/// `node_size` is the radius around a node where the repulsion coefficient is `kr_prime`.
 	/// `kr_prime` is arbitrarily set to `100.0` in Gephi implementation.
 	pub prevent_overlapping: Option<(T, T)>,
-	/// Gravity does not decrease with distance, resulting in a more compact graph
+	/// Gravity does not decrease with distance, resulting in a more compact graph.
 	pub strong_gravity: bool,
+	/// Optimize repulsion using Barnes-Hut algorithm (time passes from N^2 to NlogN).
+	/// The argument is theta.
+	///
+	/// **Note**: only implemented for `T=f64` and `dimension` 2 or 3.
+	#[cfg(feature = "barnes_hut")]
+	pub barnes_hut: Option<T>,
 }
 
 impl<T: Coord> Default for Settings<T> {
@@ -37,6 +45,8 @@ impl<T: Coord> Default for Settings<T> {
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
+			#[cfg(feature = "barnes_hut")]
+			barnes_hut: None,
 		}
 	}
 }
@@ -50,7 +60,10 @@ pub struct Layout<T: Coord> {
 	speeds: PointList<T>,
 }
 
-impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
+impl<'a, T: Coord + std::fmt::Debug> Layout<T>
+where
+	Layout<T>: Repulsion,
+{
 	/// Instanciates a randomly positioned layout from a directed graph
 	#[cfg(feature = "rand")]
 	pub fn from_graph(edges: Vec<Edge>, nb_nodes: usize, settings: Settings<T>) -> Self
@@ -384,7 +397,8 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 		}
 	}
 
-	fn apply_repulsion(&mut self) {
+	#[inline]
+	fn inner_apply_repulsion(&mut self) {
 		if let Some((node_size, krprime)) = &self.settings.prevent_overlapping {
 			for n1 in 0..self.nodes.len() - 1 {
 				let n1_pos = self.points.get(n1);
@@ -461,10 +475,194 @@ impl<'a, T: Coord + std::fmt::Debug> Layout<T> {
 	}
 }
 
+#[cfg(feature = "barnes_hut")]
+impl Layout<f64> {
+	#[inline]
+	fn inner_apply_repulsion_barnes_hut(&mut self) {
+		match self.settings.dimensions {
+			2 => {
+				let particles: Vec<nbody_barnes_hut::particle_2d::Particle2D> = self
+					.points
+					.iter()
+					.zip(self.nodes.iter())
+					.map(|(point, node)| nbody_barnes_hut::particle_2d::Particle2D {
+						position: nbody_barnes_hut::vector_2d::Vector2D {
+							x: point[0],
+							y: point[1],
+						},
+						mass: (node.degree + 1) as f64,
+					})
+					.collect();
+				let tree = nbody_barnes_hut::barnes_hut_2d::QuadTree::new(
+					&particles
+						.iter()
+						.collect::<Vec<&nbody_barnes_hut::particle_2d::Particle2D>>(),
+					self.settings.barnes_hut.unwrap(),
+				);
+				let kr = self.settings.kr.clone();
+				if let Some((node_size, krprime)) = &self.settings.prevent_overlapping {
+					izip!(
+						particles.into_iter(),
+						self.speeds.iter_mut(),
+						self.nodes.iter()
+					)
+					.for_each(|(particle, speed, node)| {
+						let nbody_barnes_hut::vector_2d::Vector2D { x, y } = tree
+							.calc_forces_on_particle(
+								particle.position,
+								node.degree + 1,
+								|d2, m1, dv, m2| {
+									let d = d2.sqrt();
+									let dprime = d - node_size;
+									(if dprime.positive() {
+										kr / dprime
+									} else if dprime.is_zero() {
+										return nbody_barnes_hut::vector_2d::Vector2D {
+											x: 0.0,
+											y: 0.0,
+										};
+									} else {
+										*krprime
+									}) * m1 * m2 as f64 / d * dv
+								},
+							);
+						speed[0] -= x;
+						speed[1] -= y;
+					});
+				} else {
+					izip!(
+						particles.into_iter(),
+						self.speeds.iter_mut(),
+						self.nodes.iter()
+					)
+					.for_each(|(particle, speed, node)| {
+						let nbody_barnes_hut::vector_2d::Vector2D { x, y } = tree
+							.calc_forces_on_particle(
+								particle.position,
+								node.degree + 1,
+								|d2, m1, dv, m2| m2 as f64 * m1 / d2.sqrt() * kr * dv,
+							);
+						speed[0] -= x;
+						speed[1] -= y;
+					});
+				}
+			}
+			3 => {
+				let particles: Vec<nbody_barnes_hut::particle_3d::Particle3D> = self
+					.points
+					.iter()
+					.zip(self.nodes.iter())
+					.map(|(point, node)| nbody_barnes_hut::particle_3d::Particle3D {
+						position: nbody_barnes_hut::vector_3d::Vector3D {
+							x: point[0],
+							y: point[1],
+							z: point[2],
+						},
+						mass: (node.degree + 1) as f64,
+					})
+					.collect();
+				let tree = nbody_barnes_hut::barnes_hut_3d::OctTree::new(
+					&particles
+						.iter()
+						.collect::<Vec<&nbody_barnes_hut::particle_3d::Particle3D>>(),
+					self.settings.barnes_hut.unwrap(),
+				);
+				let kr = self.settings.kr.clone();
+				if let Some((node_size, krprime)) = &self.settings.prevent_overlapping {
+					izip!(
+						particles.into_iter(),
+						self.speeds.iter_mut(),
+						self.nodes.iter()
+					)
+					.for_each(|(particle, speed, node)| {
+						let nbody_barnes_hut::vector_3d::Vector3D { x, y, z } = tree
+							.calc_forces_on_particle(
+								particle.position,
+								node.degree + 1,
+								|d2, m1, dv, m2| {
+									let d = d2.sqrt();
+									let dprime = d - node_size;
+									(if dprime.positive() {
+										kr / dprime
+									} else if dprime.is_zero() {
+										return nbody_barnes_hut::vector_3d::Vector3D {
+											x: 0.0,
+											y: 0.0,
+											z: 0.0,
+										};
+									} else {
+										*krprime
+									}) * m1 * m2 as f64 / d * dv
+								},
+							);
+						speed[0] -= x;
+						speed[1] -= y;
+						speed[2] -= z;
+					});
+				} else {
+					izip!(
+						particles.into_iter(),
+						self.speeds.iter_mut(),
+						self.nodes.iter()
+					)
+					.for_each(|(particle, speed, node)| {
+						let nbody_barnes_hut::vector_3d::Vector3D { x, y, z } = tree
+							.calc_forces_on_particle(
+								particle.position,
+								node.degree + 1,
+								|d2, m1, dv, m2| m2 as f64 * m1 / d2.sqrt() * kr * dv,
+							);
+						speed[0] -= x;
+						speed[1] -= y;
+						speed[2] -= z;
+					});
+				}
+			}
+			_ => unimplemented!("Barnes-Hut only implemented for 2D and 3D"),
+		}
+	}
+}
+
+// This trait was needed to allow specialization
+#[doc(hidden)]
+pub trait Repulsion {
+	fn apply_repulsion(&mut self);
+}
+
+#[cfg(not(feature = "barnes_hut"))]
+impl<T: Coord + std::fmt::Debug> Repulsion for Layout<T> {
+	fn apply_repulsion(&mut self) {
+		self.inner_apply_repulsion()
+	}
+}
+
+#[cfg(feature = "barnes_hut")]
+default impl<T: Coord + std::fmt::Debug> Repulsion for Layout<T> {
+	fn apply_repulsion(&mut self) {
+		if self.settings.barnes_hut.is_none() {
+			self.inner_apply_repulsion()
+		} else {
+			unimplemented!("Barnes-Hut only implemented for Layout<f64>")
+		}
+	}
+}
+
+#[cfg(feature = "barnes_hut")]
+impl Repulsion for Layout<f64> {
+	fn apply_repulsion(&mut self) {
+		if self.settings.barnes_hut.is_some() {
+			self.inner_apply_repulsion_barnes_hut()
+		} else {
+			self.inner_apply_repulsion()
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
+	#[cfg(feature = "rand")]
 	#[test]
 	fn test_global() {
 		let mut layout = Layout::<f64>::from_graph(
@@ -556,6 +754,28 @@ mod tests {
 		assert!(speed_2[1] < 0.0);
 	}
 
+	#[cfg(feature = "barnes_hut")]
+	#[test]
+	fn test_barnes_hut_2d() {
+		let mut layout = Layout::<f64>::from_position_graph(
+			vec![(0, 1)],
+			vec![vec![-1.0, -1.0].as_slice(), vec![1.0, 1.0].as_slice()].into_iter(),
+			Settings::default(),
+		);
+
+		layout.settings.barnes_hut = Some(0.5);
+		layout.init_iteration();
+		layout.apply_repulsion();
+
+		let speed_1 = dbg!(layout.speeds.get(0));
+		let speed_2 = dbg!(layout.speeds.get(1));
+
+		assert!(speed_1[0] < 0.0);
+		assert!(speed_1[1] < 0.0);
+		assert!(speed_2[0] > 0.0);
+		assert!(speed_2[1] > 0.0);
+	}
+
 	#[test]
 	fn test_convergence() {
 		let mut layout = Layout::<f64>::from_position_graph(
@@ -569,16 +789,18 @@ mod tests {
 			Settings {
 				dimensions: 2,
 				dissuade_hubs: false,
-				kg: 3.0,
-				kr: 1.0,
+				kg: 0.01,
+				kr: 0.01,
 				lin_log: false,
 				prevent_overlapping: None,
 				strong_gravity: false,
+				#[cfg(feature = "barnes_hut")]
+				barnes_hut: None,
 			},
 		);
 
 		for _ in 0..10 {
-			/*println!("new iteration");
+			println!("new iteration");
 			layout.init_iteration();
 			layout.apply_attraction();
 			println!("{:?}", layout.speeds.points);
@@ -587,8 +809,9 @@ mod tests {
 			println!("{:?}", layout.speeds.points);
 			layout.init_iteration();
 			layout.apply_gravity();
-			println!("{:?}", layout.speeds.points);*/
-			layout.iteration();
+			println!("{:?}", layout.speeds.points);
+			layout.apply_forces();
+			//layout.iteration();
 
 			dbg!(&layout.points.points);
 			let point_1 = layout.points.get(0);
