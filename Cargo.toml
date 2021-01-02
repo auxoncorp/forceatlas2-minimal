@@ -2,6 +2,8 @@
 name = "forceatlas2"
 version = "0.1.0"
 authors = ["tuxmain <tuxmain@zettascript.org>"]
+repository = "https://framagit.org/ZettaScript/forceatlas2-rs"
+license = "AGPL3"
 edition = "2018"
 
 [dependencies]

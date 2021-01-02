@@ -28,14 +28,14 @@ fn main() {
 		NODES,
 		Settings {
 			dimensions: 2,
-			dissuade_hubs: true,
+			dissuade_hubs: false,
 			ka: 0.5,
 			kg: 1.0,
-			kr: 10.0,
+			kr: 0.1,
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
-			barnes_hut: Some(0.9),
+			barnes_hut: None,
 		},
 	);
 

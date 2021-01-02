@@ -2,13 +2,26 @@
 
 Implementation of [ForceAtlas2](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4051631/), a Continuous Graph Layout Algorithm for Handy Network Visualization (in other words, position the nodes of a n-dimension graph for drawing it more human-readably).
 
-## Example
+## Examples
+
+[Install Rustup](https://rustup.rs/) and switch to nightly:
+
+    rustup toolchain install nightly && rustup default nightly
 
 A packet may be needed to draw graph:
 
     sudo apt install libfreetype6-dev
 
-You may also need nightly Rust.
+Clone repository:
+
+    git clone https://framagit.org/ZettaScript/forceatlas2-rs && cd forceatlas2-rs
+
+Build example: (`examples/wot.csv` file lists the edges of a directed graph, in two columns)
+
+    cargo build --release --example csv_import
+    ./target/release/examples/csv_import examples/wot.csv
+
+Output images are in `target` directory.
 
 ## License
 

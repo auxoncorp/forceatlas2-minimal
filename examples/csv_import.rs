@@ -4,7 +4,7 @@ use std::io::BufRead;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
-const ITERATIONS: u32 = 50;
+const ITERATIONS: u32 = 200;
 const ANIM_MODE: bool = true;
 
 fn main() {
