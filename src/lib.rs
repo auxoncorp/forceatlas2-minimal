@@ -202,7 +202,7 @@ where
 						if dprime.non_positive() {
 							continue;
 						}
-						let f = dprime.clone().ln_1p() / dprime;
+						let f = dprime.clone().ln_1p() / dprime * self.settings.ka.clone();
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -234,7 +234,7 @@ where
 							continue;
 						}
 						let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
-						let f = dprime / d / n1_degree;
+						let f = dprime / d / n1_degree * self.settings.ka.clone();
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -262,7 +262,7 @@ where
 						if dprime.non_positive() {
 							continue;
 						}
-						let f = dprime / d;
+						let f = dprime / d * self.settings.ka.clone();
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -293,7 +293,7 @@ where
 						d = d.sqrt();
 
 						let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
-						let f = d.clone().ln_1p() / d / n1_degree;
+						let f = d.clone().ln_1p() / d / n1_degree * self.settings.ka.clone();
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -319,7 +319,7 @@ where
 						}
 						d = d.sqrt();
 
-						let f = d.clone().ln_1p() / d;
+						let f = d.clone().ln_1p() / d * self.settings.ka.clone();
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -343,6 +343,7 @@ where
 						for i in 0usize..self.settings.dimensions {
 							di[i] -= n1_pos[i].clone();
 							di[i] /= n1_degree.clone();
+							di[i] *= self.settings.ka.clone();
 							n1_speed[i] += di[i].clone();
 						}
 						let n2_speed = self.speeds.get_mut(*n2);
@@ -359,6 +360,7 @@ where
 						let di = di_v.as_mut_slice();
 						for i in 0usize..self.settings.dimensions {
 							di[i] -= n1_pos[i].clone();
+							di[i] *= self.settings.ka.clone();
 							n1_speed[i] += di[i].clone();
 						}
 						let n2_speed = self.speeds.get_mut(*n2);
