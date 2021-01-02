@@ -142,12 +142,12 @@ pub fn sample_unit_nsphere<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
 ) -> Vec<T>
 where
 	rand::distributions::Standard: rand::distributions::Distribution<T>,
-	T: rand::distributions::uniform::SampleUniform,
+	T: rand::distributions::uniform::SampleUniform + PartialOrd,
 {
 	let mut v = valloc(n);
 	let mut d = T::zero();
 	for x in v.iter_mut() {
-		*x = rng.gen_range(T::one().neg(), T::one());
+		*x = rng.gen_range(T::one().neg()..T::one());
 		d += x.clone().pow_n(2u32);
 	}
 	d = d.sqrt();

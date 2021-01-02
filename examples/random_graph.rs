@@ -15,7 +15,7 @@ fn main() {
 	eprintln!("Generating graph...");
 	let edges = (0..EDGES)
 		.map(|_| {
-			let edge = (rng.gen_range(0usize, NODES), rng.gen_range(0, NODES));
+			let edge = (rng.gen_range(0usize..NODES), rng.gen_range(0..NODES));
 			if edge.0 == edge.1 {
 				(edge.0, (edge.1 + 1) % NODES)
 			} else {
