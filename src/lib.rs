@@ -14,6 +14,8 @@ pub struct Settings<T: Coord> {
 	pub dimensions: usize,
 	/// Move hubs (high degree nodes) to the center
 	pub dissuade_hubs: bool,
+	/// Attraction coefficient
+	pub ka: T,
 	/// Gravity coefficient
 	pub kg: T,
 	/// Repulsion coefficient
@@ -40,6 +42,7 @@ impl<T: Coord> Default for Settings<T> {
 		Self {
 			dimensions: 2,
 			dissuade_hubs: false,
+			ka: T::from(0.5),
 			kg: T::one(),
 			kr: T::one(),
 			lin_log: false,
@@ -170,7 +173,8 @@ where
 							continue;
 						}
 						let n1_degree = T::from(self.nodes.get(*n1).unwrap().degree);
-						let f = dprime.clone().ln_1p() / dprime / n1_degree;
+						let f =
+							dprime.clone().ln_1p() / dprime / n1_degree * self.settings.ka.clone();
 
 						let n1_speed = self.speeds.get_mut(*n1);
 						for i in 0usize..self.settings.dimensions {
@@ -789,6 +793,7 @@ mod tests {
 			Settings {
 				dimensions: 2,
 				dissuade_hubs: false,
+				ka: 0.5,
 				kg: 0.01,
 				kr: 0.01,
 				lin_log: false,

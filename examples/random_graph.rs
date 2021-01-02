@@ -29,6 +29,7 @@ fn main() {
 		Settings {
 			dimensions: 2,
 			dissuade_hubs: true,
+			ka: 0.5,
 			kg: 1.0,
 			kr: 10.0,
 			lin_log: false,

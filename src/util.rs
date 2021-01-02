@@ -12,6 +12,7 @@ pub trait Coord = Clone
 	+ Div<Self, Output = Self>
 	+ DivAssign<Self>
 	+ From<u32>
+	+ From<f32>
 	+ Signed
 	+ RealExponential
 	+ Sub<Self>;
