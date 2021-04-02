@@ -6,13 +6,18 @@ repository = "https://framagit.org/ZettaScript/forceatlas2-rs"
 license = "AGPL3"
 edition = "2018"
 
+[profile.release]
+codegen-units = 1
+debug = true
+
 [dependencies]
 itertools = "0.10.0"
 maths-traits = "0.2.1"
-rand = { version = "0.8.0", optional = true }
+rand = { version = "0.8.3", optional = true }
 nbody_barnes_hut = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
+alloc_counter = "0.0.4"
 plotters = "0.3.0"
 stl = {git = "https://github.com/etrombly/rust-stl"}
 

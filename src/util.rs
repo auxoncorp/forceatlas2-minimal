@@ -15,17 +15,19 @@ pub trait Coord = Clone
 	+ From<f32>
 	+ Signed
 	+ RealExponential
-	+ Sub<Self>;
+	+ Sub<Self>
+	+ std::iter::Sum;
 
 /// n-dimensional position
 pub type Position<T> = [T];
 
-pub fn clone_slice_mut<'a, T: Clone>(s: &'a [T]) -> Vec<T> {
+pub fn clone_slice_mut<T: Clone>(s: &[T]) -> Vec<T> {
 	let mut v = valloc::<T>(s.len());
 	let c: &mut [T] = v.as_mut_slice();
-	for (i, e) in s.iter().enumerate() {
+	/*for (i, e) in s.iter().enumerate() {
 		c[i] = e.clone();
-	}
+	}*/
+	s.iter().zip(c.iter_mut()).for_each(|(e, c)| *c = e.clone());
 	v
 }
 
@@ -37,11 +39,7 @@ pub struct Node {
 
 #[inline]
 pub fn norm<T: Coord>(n: &Position<T>) -> T {
-	let mut sum = T::zero();
-	for i in n.iter() {
-		sum += i.clone().pow_n(2u32);
-	}
-	sum.sqrt()
+	n.iter().map(|i| i.clone().pow_n(2u32)).sum::<T>().sqrt()
 }
 
 /// Allocate Vec without initializing
@@ -108,11 +106,26 @@ impl<'a, T: Coord> PointList<T> {
 		clone_slice_mut(self.get(n))
 	}
 	#[inline]
+	pub fn get_clone_slice(&self, n: usize, v: &mut [T]) {
+		v.clone_from_slice(self.get(n))
+	}
+	#[inline(always)]
 	pub fn get_mut(&mut self, n: usize) -> &mut Position<T> {
 		let offset = n * self.dimensions;
 		&mut self.points[offset..offset + self.dimensions]
 	}
-	#[inline]
+	/// n1 < n2
+	#[inline(always)]
+	pub fn get_2_mut(&mut self, n1: usize, n2: usize) -> (&mut Position<T>, &mut Position<T>) {
+		let offset1 = n1 * self.dimensions;
+		let offset2 = n2 * self.dimensions;
+		let (s1, s2) = self.points.split_at_mut(offset2);
+		(
+			unsafe { s1.get_unchecked_mut(offset1..offset1 + self.dimensions) },
+			unsafe { s2.get_unchecked_mut(..self.dimensions) },
+		)
+	}
+	#[inline(always)]
 	pub fn set(&mut self, n: usize, val: &Position<T>) {
 		let offset = n * self.dimensions;
 		self.points[offset..offset + self.dimensions].clone_from_slice(val);
@@ -137,7 +150,7 @@ impl<'a, T: Coord> PointList<T> {
 ///
 /// `n` is the number of spatial dimensions (1 => two points; 2 => circle; 3 => sphere; etc.).
 #[cfg(feature = "rand")]
-pub fn sample_unit_nsphere<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
+pub fn _sample_unit_nsphere<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
 	rng: &mut R,
 	n: usize,
 ) -> Vec<T>
@@ -158,6 +171,25 @@ where
 	v
 }
 
+/// Uniform random distribution of points in a n-cube
+///
+/// `n` is the number of spatial dimensions (1 => segment; 2 => square; 3 => cube; etc.).
+#[cfg(feature = "rand")]
+pub fn sample_unit_ncube<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
+	rng: &mut R,
+	n: usize,
+) -> Vec<T>
+where
+	rand::distributions::Standard: rand::distributions::Distribution<T>,
+	T: rand::distributions::uniform::SampleUniform + PartialOrd,
+{
+	let mut v = valloc(n);
+	for x in v.iter_mut() {
+		*x = rng.gen_range(T::one().neg()..T::one());
+	}
+	v
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -170,5 +202,16 @@ mod tests {
 		b[2] = 6;
 		assert_eq!(b.len(), 5);
 		assert_eq!(b, [1, 2, 6, 4, 5]);
+	}
+
+	#[test]
+	fn test_get_2_mut() {
+		let mut a = PointList {
+			dimensions: 2,
+			points: vec![0., 1., 2., 3., 4., 5., 6., 7., 8., 9.],
+		};
+		let (s1, s2) = a.get_2_mut(1, 3);
+		assert_eq!(s1.to_vec(), [2., 3.]);
+		assert_eq!(s2.to_vec(), [6., 7.]);
 	}
 }

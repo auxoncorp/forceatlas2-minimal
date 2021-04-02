@@ -4,7 +4,7 @@ use std::io::BufRead;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
-const ITERATIONS: u32 = 200;
+const ITERATIONS: u32 = 10;
 const ANIM_MODE: bool = true;
 
 fn main() {
@@ -30,7 +30,9 @@ fn main() {
 				if n2 > nodes {
 					nodes = n2;
 				}
-				edges.push((n1, n2));
+				if n1 != n2 {
+					edges.push(if n1 < n2 { (n1, n2) } else { (n2, n1) });
+				}
 			} else {
 				eprintln!("Ignored line {} has bad number format", i);
 			}
@@ -45,6 +47,7 @@ fn main() {
 		Settings {
 			dimensions: 2,
 			dissuade_hubs: false,
+			jitter_tolerance: 0.05,
 			ka: 0.5,
 			kg: 1.0,
 			kr: 0.1,

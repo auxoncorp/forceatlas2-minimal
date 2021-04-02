@@ -1,0 +1,138 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in library 'forceatlas2'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--lib",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "forceatlas2",
+					"kind": "lib"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug example 'graph_3d'",
+			"cargo": {
+				"args": [
+					"build",
+					"--example=graph_3d",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "graph_3d",
+					"kind": "example"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in example 'graph_3d'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--example=graph_3d",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "graph_3d",
+					"kind": "example"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug example 'csv_import'",
+			"cargo": {
+				"args": [
+					"build",
+					"--example=csv_import",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "csv_import",
+					"kind": "example"
+				}
+			},
+			"args": ["examples/wot.csv"],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in example 'csv_import'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--example=csv_import",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "csv_import",
+					"kind": "example"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug example 'random_graph'",
+			"cargo": {
+				"args": [
+					"build",
+					"--example=random_graph",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "random_graph",
+					"kind": "example"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in example 'random_graph'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--example=random_graph",
+					"--package=forceatlas2"
+				],
+				"filter": {
+					"name": "random_graph",
+					"kind": "example"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}
