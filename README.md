@@ -25,7 +25,7 @@ Output images are in `target` directory.
 
 ## License
 
-GNU AGPL v3, CopyLeft 2020 Pascal Engélibert
+GNU AGPL v3, CopyLeft 2020-2021 Pascal Engélibert
 
 Implementation details inspired by:
 * [python-forceatlas2](https://code.launchpad.net/forceatlas2-python) (GNU GPL v3, CopyLeft 2016 Max Shinn)

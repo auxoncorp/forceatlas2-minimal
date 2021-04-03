@@ -4,8 +4,8 @@ use std::io::BufRead;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
-const ITERATIONS: u32 = 10;
-const ANIM_MODE: bool = true;
+const ITERATIONS: u32 = 1000;
+const ANIM_MODE: bool = false;
 
 fn main() {
 	let file = std::fs::File::open(
@@ -40,6 +40,8 @@ fn main() {
 			eprintln!("Ignored line {} has <2 columns", i);
 		}
 	}
+
+	println!("Nodes: {}", nodes + 1);
 
 	let mut layout = Layout::<f64>::from_graph(
 		edges,

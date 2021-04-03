@@ -92,8 +92,8 @@ pub fn apply_repulsion_fast<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layo
 				let n2_speed = unsafe { n2_speed.get_unchecked_mut(i) };
 
 				let s = unsafe { std::intrinsics::fmul_fast(f, *di) };
-				*n1_speed = unsafe { std::intrinsics::fadd_fast(*n1_speed, s) };
-				*n2_speed = unsafe { std::intrinsics::fsub_fast(*n2_speed, s) };
+				*n1_speed = unsafe { std::intrinsics::fsub_fast(*n1_speed, s) };
+				*n2_speed = unsafe { std::intrinsics::fadd_fast(*n2_speed, s) };
 
 				if i == last_dim {
 					break;
@@ -113,10 +113,10 @@ pub fn apply_repulsion_fast<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layo
 }
 
 pub fn apply_repulsion_fast_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
-	let mut n2_iter = layout.points.iter();
 	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+		let mut n2_iter = layout.points.iter();
 		let n1_degree = n1_node.degree + 1;
-		for (n2, n2_pos) in (n1 + 1..).zip(&mut n2_iter) {
+		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) };
 
@@ -129,10 +129,10 @@ pub fn apply_repulsion_fast_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut L
 				/ d2 * layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
-			unsafe { n1_speed.get_unchecked_mut(0) }.add_assign(f * dx);
-			unsafe { n1_speed.get_unchecked_mut(1) }.add_assign(f * dy);
-			unsafe { n2_speed.get_unchecked_mut(0) }.sub_assign(f * dx);
-			unsafe { n2_speed.get_unchecked_mut(1) }.sub_assign(f * dy);
+			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(f * dx); // n1_speed[0] += f * dx
+			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(f * dy); // n1_speed[1] += f * dy
+			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(f * dx); // n2_speed[0] -= f * dx
+			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(f * dy); // n2_speed[1] -= f * dy
 		}
 	}
 }

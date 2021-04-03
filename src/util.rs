@@ -175,7 +175,7 @@ where
 ///
 /// `n` is the number of spatial dimensions (1 => segment; 2 => square; 3 => cube; etc.).
 #[cfg(feature = "rand")]
-pub fn sample_unit_ncube<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
+pub fn sample_unit_ncube<T: Coord + Clone + DivAssign<T> + RealExponential, R: Rng>(
 	rng: &mut R,
 	n: usize,
 ) -> Vec<T>
@@ -183,9 +183,10 @@ where
 	rand::distributions::Standard: rand::distributions::Distribution<T>,
 	T: rand::distributions::uniform::SampleUniform + PartialOrd,
 {
+	let ray = T::from(n as u32);
 	let mut v = valloc(n);
 	for x in v.iter_mut() {
-		*x = rng.gen_range(T::one().neg()..T::one());
+		*x = rng.gen_range(ray.clone().neg()..ray.clone());
 	}
 	v
 }

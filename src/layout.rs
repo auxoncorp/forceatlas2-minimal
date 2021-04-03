@@ -55,7 +55,6 @@ pub struct Layout<T: Coord> {
 	pub points: PointList<T>,
 	pub(crate) settings: Settings<T>,
 	pub speed: T,
-	pub speed_efficiency: T,
 	pub speeds: PointList<T>,
 	pub old_speeds: PointList<T>,
 

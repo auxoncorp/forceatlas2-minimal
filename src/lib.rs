@@ -48,7 +48,6 @@ where
 				},
 			},
 			speed: T::one(),
-			speed_efficiency: T::one(),
 			speeds: PointList {
 				dimensions: settings.dimensions,
 				points: (0..nb).map(|_| T::zero()).collect(),
@@ -96,7 +95,6 @@ where
 				points,
 			},
 			speed: T::one(),
-			speed_efficiency: T::one(),
 			speeds: PointList {
 				dimensions: settings.dimensions,
 				points: (0..nb).map(|_| T::zero()).collect(),
@@ -162,76 +160,6 @@ where
 	}
 
 	fn apply_forces(&mut self) {
-		let mut total_swinging = T::zero();
-		let mut total_effective_traction = T::zero();
-		for (n, speed, old_speed) in izip!(
-			self.nodes.iter(),
-			self.speeds.iter(),
-			self.old_speeds.iter()
-		) {
-			total_swinging += speed
-				.iter()
-				.zip(old_speed.iter())
-				.map(|(si, old_si)| (si.clone() - old_si.clone()).pow_n(2u32))
-				.sum::<T>()
-				.sqrt() * T::from(n.degree);
-			total_effective_traction += speed
-				.iter()
-				.zip(old_speed.iter())
-				.map(|(si, old_si)| (si.clone() + old_si.clone()).pow_n(2u32))
-				.sum::<T>()
-				.sqrt() * T::from(n.degree)
-				/ T::from(2);
-		}
-
-		let estimated_optimal_jt = T::from(0.05 * (self.nodes.len() as f32).sqrt());
-		let min_jt = estimated_optimal_jt.clone().sqrt();
-		let max_jt = T::from(10);
-		let len = T::from(self.nodes.len() as u32);
-		let mut jt = estimated_optimal_jt * total_effective_traction.clone() / len.pow_n(2u32);
-		jt = self.settings.jitter_tolerance.clone()
-			* if jt > max_jt {
-				max_jt
-			} else if jt < min_jt {
-				min_jt
-			} else {
-				jt
-			};
-
-		let min_speed_efficiency = T::from(0.05);
-		if total_swinging > T::from(2) * total_effective_traction.clone() {
-			if self.speed_efficiency > min_speed_efficiency {
-				self.speed_efficiency /= T::from(2);
-			}
-			if jt < self.settings.jitter_tolerance {
-				jt = self.settings.jitter_tolerance.clone();
-			}
-		}
-
-		let target_speed =
-			jt * self.speed_efficiency.clone() * total_effective_traction / total_swinging;
-
-		if self.speed_efficiency > target_speed {
-			if self.speed_efficiency > min_speed_efficiency {
-				self.speed_efficiency *= T::from(0.7);
-			}
-		} else if self.speed < T::from(1000) {
-			self.speed_efficiency *= T::from(1.3);
-		}
-
-		println!(
-			"speed: {:?}\t\teff: {:?}\t\ttarget: {:?}",
-			self.speed, self.speed_efficiency, target_speed
-		);
-
-		let max_rise = T::from(0.5);
-		self.speed +=
-			if target_speed.clone() - self.speed.clone() > max_rise.clone() * self.speed.clone() {
-				max_rise * self.speed.clone()
-			} else {
-				target_speed - self.speed.clone()
-			};
-
 		for (pos, speed, old_speed) in izip!(
 			self.points.iter_mut(),
 			self.speeds.iter(),
@@ -242,12 +170,16 @@ where
 				.zip(old_speed.iter())
 				.map(|(s, old_s)| (s.clone() - old_s.clone()).pow_n(2u32))
 				.sum::<T>();
-			let f = self.speed.clone() / (T::one() + (self.speed.clone() * swinging).sqrt());
+			let traction = speed
+				.iter()
+				.zip(old_speed.iter())
+				.map(|(s, old_s)| (s.clone() + old_s.clone()).pow_n(2u32))
+				.sum::<T>();
+			let f = (traction).ln() / (swinging.sqrt() + T::one());
 
 			pos.iter_mut()
 				.zip(speed.iter())
 				.for_each(|(pos, speed)| *pos += speed.clone() * f.clone());
-			//*pos += speed.clone() / T::from(100.0);
 		}
 	}
 }
@@ -432,7 +364,7 @@ mod tests {
 		);
 		assert_eq!(
 			alloc_counter::count_alloc(|| layout.apply_repulsion()).0,
-			(1, 0, 1)
+			(0, 0, 0)
 		);
 		assert_eq!(
 			alloc_counter::count_alloc(|| layout.apply_gravity()).0,
