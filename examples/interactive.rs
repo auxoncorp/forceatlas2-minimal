@@ -68,6 +68,7 @@ fn main() {
 	)
 	.expect("Cannot open file");
 
+	let iters = Arc::new(RwLock::new(0u32));
 	let mut nodes = 0usize;
 	let mut edges = Vec::<(usize, usize)>::new();
 	for (i, line) in std::io::BufReader::new(file).lines().enumerate() {
@@ -130,11 +131,13 @@ fn main() {
 		let image = image.clone();
 		let computing = computing.clone();
 		let layout = layout.clone();
+		let iters = iters.clone();
 		move || loop {
 			if *computing.read().unwrap() {
 				let mut layout = layout.write().unwrap();
 				draw_graph(&layout, image.clone());
 				layout.iteration();
+				iters.write().unwrap().add_assign(1);
 			}
 			thread::sleep(std::time::Duration::from_millis(*sleep.read().unwrap()));
 		}
@@ -185,6 +188,7 @@ fn main() {
 				"ka={}  kg={}  kr={}  jt={}",
 				settings.ka, settings.kg, settings.kr, settings.jitter_tolerance
 			),
+			Some("i") => println!("{}", iters.read().unwrap()),
 			_ => println!("Unknown command"),
 		}
 	})
