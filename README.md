@@ -2,6 +2,8 @@
 
 Implementation of [ForceAtlas2](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4051631/), a Continuous Graph Layout Algorithm for Handy Network Visualization (in other words, position the nodes of a n-dimension graph for drawing it more human-readably).
 
+There is a binding for use in Python, [fa2rs](https://framagit.org/ZettaScript/fa2rs-py).
+
 ## Examples
 
 [Install Rustup](https://rustup.rs/) and switch to nightly:
@@ -32,6 +34,7 @@ Implementation details inspired by:
 * [python-fa2](https://github.com/bhargavchippada/forceatlas2) (GNU GPL v3, CopyLeft 2017 Bhargav Chippada)
 * [Gephi](https://github.com/gephi/gephi/tree/master/modules/LayoutPlugin/src/main/java/org/gephi/layout/plugin/forceAtlas2) (GNU GPL v3 / CDDL 1.0, CopyLeft 2011 Gephi Consortium)
 * [sigma.js](https://github.com/jacomyal/sigma.js/tree/master/plugins/sigma.layout.forceAtlas2), [Graphology](https://github.com/graphology/graphology-layout-forceatlas2/blob/master/iterate.js) (MIT, Guillaume Plique)
+* [Anim-Wotmap](https://git.42l.fr/HugoTrentesaux/animwotmap) (Hugo Trentesaux)
 
 The ForceAtlas2 paper was released under CC BY, Copyright 2014 Jacomy et al.
 

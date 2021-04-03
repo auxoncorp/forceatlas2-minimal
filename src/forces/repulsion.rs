@@ -40,12 +40,12 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 
 pub fn apply_repulsion_fast<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	let mut di = valloc(layout.settings.dimensions);
-	let mut n2_iter = layout.points.iter();
 	let last_dim = layout.settings.dimensions - 1;
 	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+		let mut n2_iter = layout.points.iter();
 		let n1_degree = n1_node.degree + 1;
 		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
-		for (n2, n2_pos) in (n1 + 1..).zip(&mut n2_iter) {
+		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			di.copy_from_slice(n2_pos);
 
 			/*let mut i = 0usize;
@@ -139,7 +139,6 @@ pub fn apply_repulsion_fast_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut L
 
 pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	let mut di = valloc(layout.settings.dimensions);
-	let mut n2_iter = layout.points.iter();
 	let (node_size, krprime) = unsafe {
 		layout
 			.settings
@@ -148,9 +147,10 @@ pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 			.unwrap_unchecked()
 	};
 	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+		let mut n2_iter = layout.points.iter();
 		let n1_degree = n1_node.degree + 1;
 		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
-		for (n2, n2_pos) in (n1 + 1..).zip(&mut n2_iter) {
+		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			di.clone_from_slice(n2_pos);
 
 			let d2 = di

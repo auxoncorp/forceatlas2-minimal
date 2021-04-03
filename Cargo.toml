@@ -1,9 +1,10 @@
 [package]
 name = "forceatlas2"
 version = "0.1.0"
+description = "ForceAtlas2 n-dimension graph layout"
 authors = ["tuxmain <tuxmain@zettascript.org>"]
 repository = "https://framagit.org/ZettaScript/forceatlas2-rs"
-license = "AGPL3"
+license = "AGPL-3.0-only"
 edition = "2018"
 
 [profile.release]
