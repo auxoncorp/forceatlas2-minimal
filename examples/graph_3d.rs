@@ -8,11 +8,15 @@ use stl::*;
 const EDGES: usize = 5000;
 const NODES: usize = 1000;
 
-const ITERATIONS: u32 = 10;
+const ITERATIONS: u32 = 500;
 
-const NODE_RADIUS: f32 = 10.0;
+const NODE_RADIUS: f32 = 1.0;
 const EDGE_RADIUS: f32 = 1.0;
-const SCALE: f32 = 0.001;
+const SCALE: f32 = 1.0;
+
+fn degree_to_scale(degree: usize) -> f32 {
+	(degree as f32).sqrt()
+}
 
 #[inline]
 fn tri(normal: [f32; 3], v1: [f32; 3], v2: [f32; 3], v3: [f32; 3]) -> Triangle {
@@ -253,15 +257,14 @@ fn main() {
 		nb_nodes,
 		Settings {
 			dimensions: 3,
-			dissuade_hubs: true,
-			jitter_tolerance: 1.0,
-			ka: 0.5,
-			kg: 10000.0, //1.0
-			kr: 100.0,   //0.1
+			dissuade_hubs: false,
+			jitter_tolerance: 0.1,
+			ka: 0.1,
+			kg: 0.01,
+			kr: 0.02,
 			lin_log: false,
-			prevent_overlapping: Some((NODE_RADIUS as f64, 100.0)),
+			prevent_overlapping: None, //Some((NODE_RADIUS as f64, 100.0)),
 			strong_gravity: false,
-			barnes_hut: Some(0.5),
 		},
 	);
 
@@ -278,7 +281,7 @@ fn main() {
 
 	for (i, node) in layout.points.iter().enumerate() {
 		let mut new_sphere = clone_solid(&sphere);
-		uniscale(&mut new_sphere, degrees[i] as f32);
+		uniscale(&mut new_sphere, degree_to_scale(degrees[i]));
 		translate(
 			&mut new_sphere,
 			dbg!([

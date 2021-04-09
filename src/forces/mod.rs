@@ -46,6 +46,9 @@ pub fn choose_attraction<T: Coord + std::fmt::Debug>(settings: &Settings<T>) -> 
 }
 
 pub fn choose_gravity<T: Coord + std::fmt::Debug>(settings: &Settings<T>) -> fn(&mut Layout<T>) {
+	if settings.kg.is_zero() {
+		return |_| {};
+	}
 	if settings.strong_gravity {
 		gravity::apply_gravity_sg
 	} else {
@@ -97,8 +100,17 @@ impl Repulsion<f64> for Layout<f64> /*forces::Forces<f64>*/ {
 			repulsion::apply_repulsion_po
 		} else {
 			match settings.dimensions {
-				2 => repulsion::apply_repulsion_fast_2d,
-				_ => repulsion::apply_repulsion_fast,
+				2 => {
+					#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+					{
+						if is_x86_feature_detected!("avx2") {
+							return repulsion::apply_repulsion_2d_simd;
+						}
+					}
+					repulsion::apply_repulsion_2d
+				}
+				3 => repulsion::apply_repulsion_3d,
+				_ => repulsion::apply_repulsion,
 			}
 		}
 	}

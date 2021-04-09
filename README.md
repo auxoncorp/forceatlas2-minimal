@@ -2,7 +2,20 @@
 
 Implementation of [ForceAtlas2](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4051631/), a Continuous Graph Layout Algorithm for Handy Network Visualization (in other words, position the nodes of a n-dimension graph for drawing it more human-readably).
 
+![Example graph spacialized with ForceAtlas2-rs](https://txmn.tk/img/wot-fa2rs.png)
+
 There is a binding for use in Python, [fa2rs](https://framagit.org/ZettaScript/fa2rs-py).
+
+The implementations used depend on the type and the parameters. The most optimized is a `Copy` type with `prevent_overlapping` and `barnes_hut` disabled, in 2D or 3D. Some specializations are not implemented yet. `x86` and `x86_64` processors with support to `avx2` use SIMD to compute faster on the `f64`, 2D, `prevent_overlapping` and `barnes_hut` disabled case.
+
+TL;DR If you want best performance, use the following:
+* CPU: `x86` or `x86_64` with `avx2`
+* `Layout<f64>`
+* `Settings::prevent_overlapping: None`
+* `Settings::barnes_hut: false` (or just don't use this feature)
+* `RUSTFLAGS='-C target-feature=+avx2'`
+
+Use the `barnes_hut` feature to turn repulsion from O(n^2) to O(n×log(n)) (only for 2D/3D and `f64`). However, some optimizations like SIMD are not available with Barnes-Hut.
 
 ## Examples
 
@@ -20,7 +33,7 @@ Clone repository:
 
 Build example: (`examples/wot.csv` file lists the edges of a directed graph, in two columns)
 
-    cargo build --release --example csv_import
+    RUSTFLAGS='-C target-feature=+avx2' cargo build --release --example csv_import
     ./target/release/examples/csv_import examples/wot.csv
 
 Output images are in `target` directory.

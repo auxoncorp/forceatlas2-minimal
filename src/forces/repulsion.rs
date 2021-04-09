@@ -38,81 +38,7 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	}
 }
 
-pub fn apply_repulsion_fast<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
-	let mut di = valloc(layout.settings.dimensions);
-	let last_dim = layout.settings.dimensions - 1;
-	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
-		let mut n2_iter = layout.points.iter();
-		let n1_degree = n1_node.degree + 1;
-		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
-		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
-			di.copy_from_slice(n2_pos);
-
-			/*let mut i = 0usize;
-			let mut d2 = T::zero();
-			loop {
-				let di = unsafe{di.get_unchecked_mut(i)};
-				let n1_pos = *unsafe{n1_pos.get_unchecked(i)};
-				*di = unsafe{std::intrinsics::fsub_fast(*di, n1_pos)};
-				d2 = unsafe{std::intrinsics::fadd_fast(d2, std::intrinsics::fmul_fast(*di, *di))};
-
-				if i == last_dim {
-					break;
-				}
-				i += 1;
-			}*/
-
-			let d2 = di
-				.iter_mut()
-				.zip(n1_pos.iter())
-				.fold(T::zero(), |sum, (di, n1_pos)| {
-					*di = unsafe { std::intrinsics::fsub_fast(*di, *n1_pos) };
-					unsafe { std::intrinsics::fadd_fast(sum, std::intrinsics::fmul_fast(*di, *di)) }
-				});
-
-			if d2.is_zero() {
-				continue;
-			}
-
-			let f = unsafe {
-				std::intrinsics::fmul_fast(
-					std::intrinsics::fdiv_fast(
-						T::from(n1_degree * (layout.nodes.get_unchecked(n2).degree + 1)),
-						d2,
-					),
-					layout.settings.kr,
-				)
-			};
-
-			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
-			let mut i = 0usize;
-			loop {
-				let di = unsafe { di.get_unchecked(i) };
-				let n1_speed = unsafe { n1_speed.get_unchecked_mut(i) };
-				let n2_speed = unsafe { n2_speed.get_unchecked_mut(i) };
-
-				let s = unsafe { std::intrinsics::fmul_fast(f, *di) };
-				*n1_speed = unsafe { std::intrinsics::fsub_fast(*n1_speed, s) };
-				*n2_speed = unsafe { std::intrinsics::fadd_fast(*n2_speed, s) };
-
-				if i == last_dim {
-					break;
-				}
-				i += 1;
-			}
-
-			/*izip!(n1_speed.iter_mut(), n2_speed.iter_mut(), di.iter()).for_each(
-				|(n1_speed, n2_speed, di)| {
-					let s = unsafe{std::intrinsics::fmul_fast(f, *di)};
-					*n1_speed -= s;
-					*n2_speed += s;
-				},
-			);*/
-		}
-	}
-}
-
-pub fn apply_repulsion_fast_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
 		let n1_degree = n1_node.degree + 1;
@@ -129,10 +55,198 @@ pub fn apply_repulsion_fast_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut L
 				/ d2 * layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
+			let vx = f * dx;
+			let vy = f * dy;
+			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(vx); // n1_speed[0] -= f * dx
+			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
+			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
+			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
+		}
+	}
+}
+
+pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
+	#[cfg(target_arch = "x86")]
+	use std::arch::x86::*;
+	#[cfg(target_arch = "x86_64")]
+	use std::arch::x86_64::*;
+
+	for (n1, (n1_node, n1_pos_s)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+		let mut n2_iter = layout.points.iter();
+		let n1_degree = n1_node.degree + 1;
+		let n1_pos = unsafe { _mm256_set_pd(n1_pos_s[1], n1_pos_s[0], n1_pos_s[1], n1_pos_s[0]) };
+
+		/*unsafe {
+			assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
+				layout.points.get(n1)[0],
+				layout.points.get(n1)[1],
+				layout.points.get(n1)[0],
+				layout.points.get(n1)[1],
+			));
+		}*/
+
+		// This loop iterates on nodes by 2
+		let n2_max = n1 & (usize::MAX - 1);
+		let mut n2 = 0usize;
+		while n2 < n2_max {
+			unsafe {
+				// [n2_x, n2_y, n3_x, n3_y]
+				let n23_pos = _mm256_loadu_pd(n2_iter.next_unchecked(2));
+
+				/*unsafe {
+					assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n23_pos), (
+						layout.points.get(n2)[0],
+						layout.points.get(n2)[1],
+						layout.points.get(n2+1)[0],
+						layout.points.get(n2+1)[1],
+					));
+				}*/
+
+				// [dx(n1,n2), dx(n1,n2), dx(n1,n2), dx(n1,n3)]
+				let dxy = _mm256_sub_pd(n23_pos, n1_pos);
+
+				/*unsafe {
+					assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(dxy), (
+						layout.points.get(n2)[0] - layout.points.get(n1)[0],
+						layout.points.get(n2)[1] - layout.points.get(n1)[1],
+						layout.points.get(n2+1)[0] - layout.points.get(n1)[0],
+						layout.points.get(n2+1)[1] - layout.points.get(n1)[1],
+					));
+				}*/
+
+				// ([dx(n1,n2)^2, dx(n1,n3)^2], [dy(n1,n2)^2, dy(n1,n3)^2])
+				let (dx2, dy2): (__m128d, __m128d) = std::mem::transmute(_mm256_permute4x64_pd(
+					_mm256_mul_pd(dxy, dxy),
+					_MM_PERM_DBCA,
+				));
+
+				/*unsafe {
+					assert_eq!((std::mem::transmute::<__m128d, (f64,f64)>(dx2), std::mem::transmute::<__m128d, (f64,f64)>(dy2)), (
+						(
+							(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2),
+							(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)
+						),
+						(
+							(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+							(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2)
+						)
+					));
+				}*/
+
+				// [d(n1,n2), d(n1,n3)]
+				let d2 = _mm_add_pd(dx2, dy2);
+				// TODO maybe check zero
+
+				/*unsafe {
+					assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(d2), (
+						(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+						(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
+					));
+				}*/
+
+				let degs2 = f64::from(n1_degree * (layout.nodes.get_unchecked(n2).degree + 1));
+				let degs3 = f64::from(n1_degree * (layout.nodes.get_unchecked(n2 + 1).degree + 1));
+				let f = _mm_mul_pd(
+					_mm_div_pd(_mm_set_pd(degs3, degs2), d2),
+					_mm_set_pd(layout.settings.kr, layout.settings.kr),
+				);
+
+				/*unsafe {
+					assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(f), (
+						degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+						degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+					));
+				}*/
+
+				// TODO get n1_speed raw pointer at the first loop level
+				let (n1_speed, n23_speed) = layout.speeds.get_2_mut(n1, n2);
+				let (n1_speed, n23_speed) = (n1_speed.as_mut_ptr(), n23_speed.as_mut_ptr());
+				let (n1_speed_v, n23_speed_v): (__m128d, __m256d) =
+					(_mm_loadu_pd(n1_speed), _mm256_loadu_pd(n23_speed));
+
+				let fxy = _mm256_mul_pd(
+					dxy,
+					_mm256_permute4x64_pd(_mm256_set_m128d(f, f), _MM_PERM_DBCA),
+				);
+
+				/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(fxy), (
+					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[0] - layout.points.get(n1)[0]),
+					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[1] - layout.points.get(n1)[1]),
+					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]),
+					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]),
+				));*/
+
+				_mm256_storeu_pd(n23_speed, _mm256_add_pd(n23_speed_v, fxy));
+				_mm_store_pd(
+					n1_speed,
+					_mm_sub_pd(
+						n1_speed_v,
+						_mm_add_pd(_mm256_extractf128_pd(fxy, 1), _mm256_extractf128_pd(fxy, 0)),
+					),
+				);
+			}
+
+			n2 += 2;
+		}
+
+		// Remaining iteration (if n1 is odd)
+		if n1 & 1usize == 1usize {
+			let n2_pos = layout.points.get(n2);
+
+			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos_s.get_unchecked(0) };
+			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos_s.get_unchecked(1) };
+
+			let d2 = dx * dx + dy * dy;
+			if d2.is_zero() {
+				continue;
+			}
+
+			let f = f64::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
+				/ d2 * layout.settings.kr;
+
+			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
+			let vx = f * dx;
+			let vy = f * dy;
+			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(vx); // n1_speed[0] -= f * dx
+			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
+			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
+			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
+		}
+	}
+}
+
+pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+		let mut n2_iter = layout.points.iter();
+		let n1_degree = n1_node.degree + 1;
+		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
+			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) };
+			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) };
+			let dz = unsafe { *n2_pos.get_unchecked(2) - *n1_pos.get_unchecked(2) };
+
+			let d2 = dx * dx + dy * dy + dz * dz;
+			if d2.is_zero() {
+				continue;
+			}
+
+			let f = T::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
+				/ d2 * layout.settings.kr;
+
+			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(f * dx); // n1_speed[0] += f * dx
 			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(f * dy); // n1_speed[1] += f * dy
+			unsafe { n1_speed.get_unchecked_mut(2) }.sub_assign(f * dz); // n1_speed[2] += f * dz
 			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(f * dx); // n2_speed[0] -= f * dx
 			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(f * dy); // n2_speed[1] -= f * dy
+			unsafe { n2_speed.get_unchecked_mut(2) }.add_assign(f * dz); // n2_speed[2] -= f * dz
 		}
 	}
 }

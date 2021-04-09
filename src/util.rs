@@ -58,6 +58,14 @@ pub struct PointIter<'a, T> {
 	pub list: &'a Vec<T>,
 }
 
+impl<'a, T> PointIter<'a, T> {
+	pub unsafe fn next_unchecked(&mut self, n: usize) -> *const T {
+		let ptr = self.list.as_ptr().add(self.offset);
+		self.offset += self.dimensions * n;
+		ptr
+	}
+}
+
 impl<'a, T> Iterator for PointIter<'a, T> {
 	type Item = &'a [T];
 
@@ -150,7 +158,7 @@ impl<'a, T: Coord> PointList<T> {
 ///
 /// `n` is the number of spatial dimensions (1 => two points; 2 => circle; 3 => sphere; etc.).
 #[cfg(feature = "rand")]
-pub fn _sample_unit_nsphere<T: Clone + DivAssign<T> + RealExponential, R: Rng>(
+pub fn _sample_unit_nsphere<T: Coord + Clone + DivAssign<T> + RealExponential, R: Rng>(
 	rng: &mut R,
 	n: usize,
 ) -> Vec<T>
@@ -158,10 +166,11 @@ where
 	rand::distributions::Standard: rand::distributions::Distribution<T>,
 	T: rand::distributions::uniform::SampleUniform + PartialOrd,
 {
+	let ray = T::from(n as u32);
 	let mut v = valloc(n);
 	let mut d = T::zero();
 	for x in v.iter_mut() {
-		*x = rng.gen_range(T::one().neg()..T::one());
+		*x = rng.gen_range(ray.clone().neg()..ray.clone());
 		d += x.clone().pow_n(2u32);
 	}
 	d = d.sqrt();

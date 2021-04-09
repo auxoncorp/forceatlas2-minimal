@@ -1,4 +1,5 @@
 #![feature(specialization)]
+#![feature(stdsimd)]
 #![feature(trait_alias)]
 #![allow(incomplete_features)]
 #![feature(option_result_unwrap_unchecked)]

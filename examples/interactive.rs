@@ -108,7 +108,6 @@ fn main() {
 		lin_log: false,
 		prevent_overlapping: None,
 		strong_gravity: false,
-		barnes_hut: None,
 	};
 
 	let layout = Arc::new(RwLock::new(Layout::<f64>::from_graph(

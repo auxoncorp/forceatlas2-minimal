@@ -36,7 +36,6 @@ fn main() {
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
-			barnes_hut: None,
 		},
 	);
 

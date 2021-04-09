@@ -50,13 +50,12 @@ fn main() {
 			dimensions: 2,
 			dissuade_hubs: false,
 			jitter_tolerance: 0.05,
-			ka: 0.5,
-			kg: 1.0,
-			kr: 0.1,
+			ka: 0.01,
+			kg: 0.001,
+			kr: 0.002,
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
-			barnes_hut: None,
 		},
 	);
 
@@ -65,7 +64,7 @@ fn main() {
 		if ANIM_MODE {
 			draw_graph(&layout, i);
 		}
-		println!("{}/{}", i, ITERATIONS);
+		print!("{}/{}\r", i, ITERATIONS);
 		layout.iteration();
 	}
 	draw_graph(&layout, ITERATIONS);
@@ -138,7 +137,7 @@ fn draw_graph(layout: &Layout<f64>, iteration: u32) {
 						}
 					},
 				],
-				Into::<ShapeStyle>::into(&BLACK).filled(),
+				Into::<ShapeStyle>::into(&RGBColor(5, 5, 5).mix(0.05)).filled(),
 			))
 			.unwrap();
 		}
