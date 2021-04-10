@@ -15,6 +15,7 @@ debug = true
 [dependencies]
 itertools = "0.10.0"
 maths-traits = "0.2.1"
+num-traits = "0.2.14"
 rand = { version = "0.8.3", optional = true }
 nbody_barnes_hut = { version = "0.1.0", optional = true }
 

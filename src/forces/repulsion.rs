@@ -1,6 +1,7 @@
 use crate::{layout::Layout, util::*};
 
 use itertools::izip;
+use num_traits::cast::NumCast;
 
 pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	let mut di = valloc(layout.settings.dimensions);
@@ -23,8 +24,10 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 				continue;
 			}
 
-			let f = T::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
-				/ d2 * layout.settings.kr.clone();
+			let f = <T as NumCast>::from(
+				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
+			)
+			.unwrap() / d2 * layout.settings.kr.clone();
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			izip!(n1_speed.iter_mut(), n2_speed.iter_mut(), di.iter()).for_each(
@@ -51,8 +54,10 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = T::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
-				/ d2 * layout.settings.kr;
+			let f = <T as NumCast>::from(
+				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
+			)
+			.unwrap() / d2 * layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			let vx = f * dx;
@@ -65,7 +70,7 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 	}
 }
 
-pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
+pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 	#[cfg(target_arch = "x86")]
 	use std::arch::x86::*;
 	#[cfg(target_arch = "x86_64")]
@@ -76,14 +81,12 @@ pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
 		let n1_degree = n1_node.degree + 1;
 		let n1_pos = unsafe { _mm256_set_pd(n1_pos_s[1], n1_pos_s[0], n1_pos_s[1], n1_pos_s[0]) };
 
-		/*unsafe {
-			assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
-				layout.points.get(n1)[0],
-				layout.points.get(n1)[1],
-				layout.points.get(n1)[0],
-				layout.points.get(n1)[1],
-			));
-		}*/
+		/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
+			layout.points.get(n1)[0],
+			layout.points.get(n1)[1],
+			layout.points.get(n1)[0],
+			layout.points.get(n1)[1],
+		));*/
 
 		// This loop iterates on nodes by 2
 		let n2_max = n1 & (usize::MAX - 1);
@@ -93,26 +96,22 @@ pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
 				// [n2_x, n2_y, n3_x, n3_y]
 				let n23_pos = _mm256_loadu_pd(n2_iter.next_unchecked(2));
 
-				/*unsafe {
-					assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n23_pos), (
-						layout.points.get(n2)[0],
-						layout.points.get(n2)[1],
-						layout.points.get(n2+1)[0],
-						layout.points.get(n2+1)[1],
-					));
-				}*/
+				/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n23_pos), (
+					layout.points.get(n2)[0],
+					layout.points.get(n2)[1],
+					layout.points.get(n2+1)[0],
+					layout.points.get(n2+1)[1],
+				));*/
 
 				// [dx(n1,n2), dx(n1,n2), dx(n1,n2), dx(n1,n3)]
 				let dxy = _mm256_sub_pd(n23_pos, n1_pos);
 
-				/*unsafe {
-					assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(dxy), (
-						layout.points.get(n2)[0] - layout.points.get(n1)[0],
-						layout.points.get(n2)[1] - layout.points.get(n1)[1],
-						layout.points.get(n2+1)[0] - layout.points.get(n1)[0],
-						layout.points.get(n2+1)[1] - layout.points.get(n1)[1],
-					));
-				}*/
+				/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(dxy), (
+					layout.points.get(n2)[0] - layout.points.get(n1)[0],
+					layout.points.get(n2)[1] - layout.points.get(n1)[1],
+					layout.points.get(n2+1)[0] - layout.points.get(n1)[0],
+					layout.points.get(n2+1)[1] - layout.points.get(n1)[1],
+				));*/
 
 				// ([dx(n1,n2)^2, dx(n1,n3)^2], [dy(n1,n2)^2, dy(n1,n3)^2])
 				let (dx2, dy2): (__m128d, __m128d) = std::mem::transmute(_mm256_permute4x64_pd(
@@ -120,47 +119,41 @@ pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
 					_MM_PERM_DBCA,
 				));
 
-				/*unsafe {
-					assert_eq!((std::mem::transmute::<__m128d, (f64,f64)>(dx2), std::mem::transmute::<__m128d, (f64,f64)>(dy2)), (
-						(
-							(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2),
-							(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)
-						),
-						(
-							(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
-							(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2)
-						)
-					));
-				}*/
+				/*assert_eq!((std::mem::transmute::<__m128d, (f64,f64)>(dx2), std::mem::transmute::<__m128d, (f64,f64)>(dy2)), (
+					(
+						(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2),
+						(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)
+					),
+					(
+						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2)
+					)
+				));*/
 
 				// [d(n1,n2), d(n1,n3)]
 				let d2 = _mm_add_pd(dx2, dy2);
 				// TODO maybe check zero
 
-				/*unsafe {
-					assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(d2), (
-						(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
-						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
-						(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
-						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
-					));
-				}*/
+				/*assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(d2), (
+					(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+					(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
+				));*/
 
-				let degs2 = f64::from(n1_degree * (layout.nodes.get_unchecked(n2).degree + 1));
-				let degs3 = f64::from(n1_degree * (layout.nodes.get_unchecked(n2 + 1).degree + 1));
+				let degs2 = (n1_degree * (layout.nodes.get_unchecked(n2).degree + 1)) as f64;
+				let degs3 = (n1_degree * (layout.nodes.get_unchecked(n2 + 1).degree + 1)) as f64;
 				let f = _mm_mul_pd(
 					_mm_div_pd(_mm_set_pd(degs3, degs2), d2),
 					_mm_set_pd(layout.settings.kr, layout.settings.kr),
 				);
 
-				/*unsafe {
-					assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(f), (
-						degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
-						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
-						degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
-						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
-					));
-				}*/
+				/*assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(f), (
+					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+				));*/
 
 				// TODO get n1_speed raw pointer at the first loop level
 				let (n1_speed, n23_speed) = layout.speeds.get_2_mut(n1, n2);
@@ -209,7 +202,7 @@ pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
 				continue;
 			}
 
-			let f = f64::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
+			let f = (n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1)) as f64
 				/ d2 * layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
@@ -219,6 +212,209 @@ pub fn apply_repulsion_2d_simd(layout: &mut Layout<f64>) {
 			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
 			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
 			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
+		}
+	}
+}
+
+pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
+	#[cfg(target_arch = "x86")]
+	use std::arch::x86::*;
+	#[cfg(target_arch = "x86_64")]
+	use std::arch::x86_64::*;
+
+	for (n1, (n1_node, n1_pos_s)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+		let mut n2_iter = layout.points.iter();
+		let n1_degree = n1_node.degree + 1;
+		let n1_pos = unsafe {
+			_mm256_set_ps(
+				n1_pos_s[1],
+				n1_pos_s[0],
+				n1_pos_s[1],
+				n1_pos_s[0],
+				n1_pos_s[1],
+				n1_pos_s[0],
+				n1_pos_s[1],
+				n1_pos_s[0],
+			)
+		};
+
+		/*unsafe {
+			assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(n1_pos), (
+				layout.points.get(n1)[0],
+				layout.points.get(n1)[1],
+				layout.points.get(n1)[0],
+				layout.points.get(n1)[1],
+				layout.points.get(n1)[0],
+				layout.points.get(n1)[1],
+				layout.points.get(n1)[0],
+				layout.points.get(n1)[1],
+			));
+		}*/
+
+		// This loop iterates on nodes by 2
+		let n2_max = n1 & (usize::MAX - 3);
+		let mut n2 = 0usize;
+		while n2 < n2_max {
+			unsafe {
+				// [n2_x, n2_y, n3_x, n3_y, n4_x, n4_y, n5_x, n5_y]
+				let n2345_pos = _mm256_loadu_ps(n2_iter.next_unchecked(4));
+
+				/*assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(n2345_pos), (
+					layout.points.get(n2)[0],
+					layout.points.get(n2)[1],
+					layout.points.get(n2+1)[0],
+					layout.points.get(n2+1)[1],
+					layout.points.get(n2+2)[0],
+					layout.points.get(n2+2)[1],
+					layout.points.get(n2+3)[0],
+					layout.points.get(n2+3)[1],
+				));*/
+
+				// [dx(n1,n2), dy(n1,n2), dx(n1,n3), dy(n1,n3), dx(n1,n4), dy(n1,n4), dx(n1,n5), dy(n1,n5)]
+				let dxy = _mm256_sub_ps(n2345_pos, n1_pos);
+
+				/*assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(dxy), (
+					layout.points.get(n2)[0] - layout.points.get(n1)[0],
+					layout.points.get(n2)[1] - layout.points.get(n1)[1],
+					layout.points.get(n2+1)[0] - layout.points.get(n1)[0],
+					layout.points.get(n2+1)[1] - layout.points.get(n1)[1],
+					layout.points.get(n2+2)[0] - layout.points.get(n1)[0],
+					layout.points.get(n2+2)[1] - layout.points.get(n1)[1],
+					layout.points.get(n2+3)[0] - layout.points.get(n1)[0],
+					layout.points.get(n2+3)[1] - layout.points.get(n1)[1],
+				));*/
+
+				// ([dx(n1,n2)^2, dx(n1,n3)^2, dx(n1,n4)^2, dx(n1,n5)^2], [dy(n1,n2)^2, dy(n1,n3)^2, dy(n1,n4)^2, dy(n1,n5)^2])
+				let (dx2, dy2): (__m128, __m128) = std::mem::transmute(_mm256_permutevar8x32_ps(
+					_mm256_mul_ps(dxy, dxy),
+					_mm256_set_epi32(7, 5, 3, 1, 6, 4, 2, 0),
+				));
+
+				/*assert_eq!((std::mem::transmute::<__m128, (f32,f32,f32,f32)>(dx2), std::mem::transmute::<__m128, (f32,f32,f32,f32)>(dy2)), (
+					(
+						(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2),
+						(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2),
+						(layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2),
+						(layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)
+					),
+					(
+						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
+						(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2),
+						(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2)
+					)
+				));*/
+
+				// [d(n1,n2), d(n1,n3), d(n1,n4), d(n1,n5)]
+				let d2 = _mm_add_ps(dx2, dy2);
+				// TODO maybe check zero
+
+				/*assert_eq!(std::mem::transmute::<__m128, (f32,f32,f32,f32)>(d2), (
+					(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+					(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
+					(layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2),
+					(layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2),
+				));*/
+
+				let degs2 = (n1_degree * (layout.nodes.get_unchecked(n2).degree + 1)) as f32;
+				let degs3 = (n1_degree * (layout.nodes.get_unchecked(n2 + 1).degree + 1)) as f32;
+				let degs4 = (n1_degree * (layout.nodes.get_unchecked(n2 + 2).degree + 1)) as f32;
+				let degs5 = (n1_degree * (layout.nodes.get_unchecked(n2 + 3).degree + 1)) as f32;
+				let f = _mm_mul_ps(
+					_mm_div_ps(_mm_set_ps(degs5, degs4, degs3, degs2), d2),
+					_mm_set_ps(
+						layout.settings.kr,
+						layout.settings.kr,
+						layout.settings.kr,
+						layout.settings.kr,
+					),
+				);
+
+				/*assert_eq!(std::mem::transmute::<__m128, (f32,f32,f32,f32)>(f), (
+					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+					degs4/((layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+					degs5/((layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+				));*/
+
+				// TODO get n1_speed raw pointer at the first loop level
+				let (n1_speed, n2345_speed) = layout.speeds.get_2_mut(n1, n2);
+				let (n1_speed, n2345_speed) = (n1_speed.as_mut_ptr(), n2345_speed.as_mut_ptr());
+				let (n1_speed_v, n2345_speed_v): (__m128, __m256) =
+					(_mm_loadu_ps(n1_speed), _mm256_loadu_ps(n2345_speed));
+
+				let fxy = _mm256_mul_ps(
+					dxy,
+					_mm256_permutevar8x32_ps(
+						_mm256_set_m128(f, f),
+						_mm256_set_epi32(7, 3, 6, 2, 5, 1, 4, 0),
+					),
+				);
+
+				/*assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(fxy), (
+					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[0] - layout.points.get(n1)[0]),
+					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[1] - layout.points.get(n1)[1]),
+					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]),
+					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]),
+					degs4/((layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+2)[0] - layout.points.get(n1)[0]),
+					degs4/((layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]),
+					degs5/((layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+3)[0] - layout.points.get(n1)[0]),
+					degs5/((layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+					(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]),
+				));*/
+
+				_mm256_storeu_ps(n2345_speed, _mm256_add_ps(n2345_speed_v, fxy));
+				_mm_storeu_ps(
+					n1_speed,
+					_mm_sub_ps(
+						n1_speed_v,
+						_mm_add_ps(_mm256_extractf128_ps(fxy, 1), _mm256_extractf128_ps(fxy, 0)),
+					),
+				);
+			}
+
+			n2 += 4;
+		}
+
+		// Remaining iterations (if n1 is not multiple of 4)
+		while n2 < n1 {
+			let n2_pos = layout.points.get(n2);
+
+			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos_s.get_unchecked(0) };
+			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos_s.get_unchecked(1) };
+
+			let d2 = dx * dx + dy * dy;
+			if d2.is_zero() {
+				continue;
+			}
+
+			let f = (n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1)) as f32
+				/ d2 * layout.settings.kr;
+
+			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
+			let vx = f * dx;
+			let vy = f * dy;
+			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(vx); // n1_speed[0] -= f * dx
+			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
+			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
+			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
+
+			n2 += 1;
 		}
 	}
 }
@@ -237,8 +433,10 @@ pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = T::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
-				/ d2 * layout.settings.kr;
+			let f = <T as NumCast>::from(
+				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
+			)
+			.unwrap() / d2 * layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(f * dx); // n1_speed[0] += f * dx
@@ -282,8 +480,10 @@ pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 			let d = d2.clone().sqrt();
 			let dprime = d.clone() - node_size.clone();
 
-			let f = T::from(n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1))
-				/ d2 * if dprime.positive() {
+			let f = <T as NumCast>::from(
+				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
+			)
+			.unwrap() / d2 * if dprime.positive() {
 				layout.settings.kr.clone() / dprime
 			} else {
 				krprime.clone()

@@ -5,13 +5,15 @@ use maths_traits::{
 	},
 	analysis::{ordered::Signed, RealExponential},
 };
+use num_traits::cast::{FromPrimitive, NumCast};
 #[cfg(feature = "rand")]
 use rand::Rng;
 
 pub trait Coord = Clone
 	+ Div<Self, Output = Self>
 	+ DivAssign<Self>
-	+ From<u32>
+	+ FromPrimitive
+	+ NumCast
 	+ From<f32>
 	+ Signed
 	+ RealExponential
@@ -59,6 +61,10 @@ pub struct PointIter<'a, T> {
 }
 
 impl<'a, T> PointIter<'a, T> {
+	/// Returns a raw pointer to the next element, and increments the counter by `n`.
+	///
+	/// # Safety
+	/// Returned pointer may overflow the data.
 	pub unsafe fn next_unchecked(&mut self, n: usize) -> *const T {
 		let ptr = self.list.as_ptr().add(self.offset);
 		self.offset += self.dimensions * n;
@@ -166,7 +172,7 @@ where
 	rand::distributions::Standard: rand::distributions::Distribution<T>,
 	T: rand::distributions::uniform::SampleUniform + PartialOrd,
 {
-	let ray = T::from(n as u32);
+	let ray: T = NumCast::from(n).unwrap();
 	let mut v = valloc(n);
 	let mut d = T::zero();
 	for x in v.iter_mut() {
@@ -192,7 +198,7 @@ where
 	rand::distributions::Standard: rand::distributions::Distribution<T>,
 	T: rand::distributions::uniform::SampleUniform + PartialOrd,
 {
-	let ray = T::from(n as u32);
+	let ray: T = NumCast::from(n).unwrap();
 	let mut v = valloc(n);
 	for x in v.iter_mut() {
 		*x = rng.gen_range(ray.clone().neg()..ray.clone());

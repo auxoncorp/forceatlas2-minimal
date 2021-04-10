@@ -29,7 +29,6 @@ fn main() {
 		Settings {
 			dimensions: 2,
 			dissuade_hubs: false,
-			jitter_tolerance: 1.0,
 			ka: 0.5,
 			kg: 1.0,
 			kr: 0.1,
@@ -71,15 +70,12 @@ fn draw_graph(layout: &Layout<f64>, iteration: u32) {
 	}
 	let graph_size = (max[0] - min[0], max[1] - min[1]);
 	let factor = {
-		let factors = (
-			f64::from(SIZE.0) / graph_size.0,
-			f64::from(SIZE.1) / graph_size.1,
-		);
+		let factors = (SIZE.0 as f64 / graph_size.0, SIZE.1 as f64 / graph_size.1);
 		if factors.0 > factors.1 {
-			min[0] -= (f64::from(SIZE.0) / factors.1 - graph_size.0) / 2.0;
+			min[0] -= (SIZE.0 as f64 / factors.1 - graph_size.0) / 2.0;
 			factors.1
 		} else {
-			min[1] -= (f64::from(SIZE.1) / factors.0 - graph_size.1) / 2.0;
+			min[1] -= (SIZE.1 as f64 / factors.0 - graph_size.1) / 2.0;
 			factors.0
 		}
 	};

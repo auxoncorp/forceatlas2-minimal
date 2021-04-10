@@ -43,13 +43,12 @@ fn main() {
 
 	println!("Nodes: {}", nodes + 1);
 
-	let mut layout = Layout::<f64>::from_graph(
+	let mut layout = Layout::<f32>::from_graph(
 		edges,
 		nodes + 1,
 		Settings {
 			dimensions: 2,
 			dissuade_hubs: false,
-			jitter_tolerance: 0.05,
 			ka: 0.01,
 			kg: 0.001,
 			kr: 0.002,
@@ -70,7 +69,7 @@ fn main() {
 	draw_graph(&layout, ITERATIONS);
 }
 
-fn draw_graph(layout: &Layout<f64>, iteration: u32) {
+fn draw_graph(layout: &Layout<f32>, iteration: u32) {
 	let mut min_v = layout.points.get_clone(0);
 	let mut max_v = min_v.clone();
 	let min = min_v.as_mut_slice();
@@ -91,15 +90,12 @@ fn draw_graph(layout: &Layout<f64>, iteration: u32) {
 	}
 	let graph_size = (max[0] - min[0], max[1] - min[1]);
 	let factor = {
-		let factors = (
-			f64::from(SIZE.0) / graph_size.0,
-			f64::from(SIZE.1) / graph_size.1,
-		);
+		let factors = (SIZE.0 as f32 / graph_size.0, SIZE.1 as f32 / graph_size.1);
 		if factors.0 > factors.1 {
-			min[0] -= (f64::from(SIZE.0) / factors.1 - graph_size.0) / 2.0;
+			min[0] -= (SIZE.0 as f32 / factors.1 - graph_size.0) / 2.0;
 			factors.1
 		} else {
-			min[1] -= (f64::from(SIZE.1) / factors.0 - graph_size.1) / 2.0;
+			min[1] -= (SIZE.1 as f32 / factors.0 - graph_size.1) / 2.0;
 			factors.0
 		}
 	};

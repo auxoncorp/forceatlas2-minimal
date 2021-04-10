@@ -258,7 +258,6 @@ fn main() {
 		Settings {
 			dimensions: 3,
 			dissuade_hubs: false,
-			jitter_tolerance: 0.1,
 			ka: 0.1,
 			kg: 0.01,
 			kr: 0.02,

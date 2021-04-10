@@ -6,7 +6,6 @@ pub struct Settings<T: Coord> {
 	pub dimensions: usize,
 	/// Move hubs (high degree nodes) to the center
 	pub dissuade_hubs: bool,
-	pub jitter_tolerance: T,
 	/// Attraction coefficient
 	pub ka: T,
 	/// Gravity coefficient
@@ -35,7 +34,6 @@ impl<T: Coord> Default for Settings<T> {
 		Self {
 			dimensions: 2,
 			dissuade_hubs: false,
-			jitter_tolerance: T::one(),
 			ka: T::one(),
 			kg: T::one(),
 			kr: T::one(),

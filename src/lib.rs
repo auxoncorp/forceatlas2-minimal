@@ -316,7 +316,6 @@ mod tests {
 			Settings {
 				dimensions: 2,
 				dissuade_hubs: false,
-				jitter_tolerance: 1.0,
 				ka: 0.5,
 				kg: 0.01,
 				kr: 0.01,

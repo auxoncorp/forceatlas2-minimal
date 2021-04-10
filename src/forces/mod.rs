@@ -104,7 +104,29 @@ impl Repulsion<f64> for Layout<f64> /*forces::Forces<f64>*/ {
 					#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 					{
 						if is_x86_feature_detected!("avx2") {
-							return repulsion::apply_repulsion_2d_simd;
+							return repulsion::apply_repulsion_2d_simd_f64;
+						}
+					}
+					repulsion::apply_repulsion_2d
+				}
+				3 => repulsion::apply_repulsion_3d,
+				_ => repulsion::apply_repulsion,
+			}
+		}
+	}
+}
+
+impl Repulsion<f32> for Layout<f32> {
+	fn choose_repulsion(settings: &Settings<f32>) -> fn(&mut Layout<f32>) {
+		if settings.prevent_overlapping.is_some() {
+			repulsion::apply_repulsion_po
+		} else {
+			match settings.dimensions {
+				2 => {
+					#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+					{
+						if is_x86_feature_detected!("avx2") {
+							return repulsion::apply_repulsion_2d_simd_f32;
 						}
 					}
 					repulsion::apply_repulsion_2d

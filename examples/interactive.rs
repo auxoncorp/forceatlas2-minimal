@@ -1,4 +1,5 @@
 use forceatlas2::*;
+use itertools::izip;
 use plotters::prelude::*;
 use sdl2;
 use sdl2::{event::Event, keyboard::Keycode, pixels::PixelFormatEnum};
@@ -101,7 +102,6 @@ fn main() {
 	let mut settings = Settings {
 		dimensions: 2,
 		dissuade_hubs: false,
-		jitter_tolerance: 0.05,
 		ka: 0.01,
 		kg: 0.001,
 		kr: 0.002,
@@ -120,7 +120,7 @@ fn main() {
 		SIZE.0 as usize * SIZE.1 as usize * 3
 	]));
 	let computing = Arc::new(RwLock::new(false));
-	let sleep = Arc::new(RwLock::new(10u64));
+	let sleep = Arc::new(RwLock::new(50u64));
 	{
 		let layout = layout.write().unwrap();
 		draw_graph(&layout, image.clone());
@@ -137,8 +137,9 @@ fn main() {
 				draw_graph(&layout, image.clone());
 				layout.iteration();
 				iters.write().unwrap().add_assign(1);
+			} else {
+				thread::sleep(std::time::Duration::from_millis(*sleep.read().unwrap()));
 			}
-			thread::sleep(std::time::Duration::from_millis(*sleep.read().unwrap()));
 		}
 	});
 
@@ -175,18 +176,11 @@ fn main() {
 				settings.kr = args.next().unwrap().parse().unwrap();
 				layout.write().unwrap().set_settings(settings.clone());
 			}
-			Some("jt") => {
-				settings.jitter_tolerance = args.next().unwrap().parse().unwrap();
-				layout.write().unwrap().set_settings(settings.clone());
-			}
 			Some("r") => {
 				let mut layout = layout.write().unwrap();
 				*layout = Layout::from_graph(edges.clone(), nodes + 1, settings.clone());
 			}
-			Some("p") => println!(
-				"ka={}  kg={}  kr={}  jt={}",
-				settings.ka, settings.kg, settings.kr, settings.jitter_tolerance
-			),
+			Some("p") => println!("ka={}  kg={}  kr={}", settings.ka, settings.kg, settings.kr,),
 			Some("i") => println!("{}", iters.read().unwrap()),
 			_ => println!("Unknown command"),
 		}
@@ -216,15 +210,12 @@ fn draw_graph(layout: &Layout<f64>, image: Arc<RwLock<Vec<u8>>>) {
 	}
 	let graph_size = (max[0] - min[0], max[1] - min[1]);
 	let factor = {
-		let factors = (
-			f64::from(SIZE.0) / graph_size.0,
-			f64::from(SIZE.1) / graph_size.1,
-		);
+		let factors = (SIZE.0 as f64 / graph_size.0, SIZE.1 as f64 / graph_size.1);
 		if factors.0 > factors.1 {
-			min[0] -= (f64::from(SIZE.0) / factors.1 - graph_size.0) / 2.0;
+			min[0] -= (SIZE.0 as f64 / factors.1 - graph_size.0) / 2.0;
 			factors.1
 		} else {
-			min[1] -= (f64::from(SIZE.1) / factors.0 - graph_size.1) / 2.0;
+			min[1] -= (SIZE.1 as f64 / factors.0 - graph_size.1) / 2.0;
 			factors.0
 		}
 	};
@@ -264,7 +255,31 @@ fn draw_graph(layout: &Layout<f64>, image: Arc<RwLock<Vec<u8>>>) {
 		}
 	}
 
-	for pos in layout.points.iter() {
+	let mut max_swinging = 0.0;
+	let mut max_traction = 0.0;
+	layout
+		.speeds
+		.iter()
+		.zip(layout.old_speeds.iter())
+		.for_each(|(speed, old_speed)| {
+			let swinging = (speed[0] - old_speed[0]).powi(2) + (speed[1] - old_speed[1]).powi(2);
+			let traction = (speed[0] + old_speed[0]).powi(2) + (speed[1] + old_speed[1]).powi(2);
+			if swinging > max_swinging {
+				max_swinging = swinging;
+			}
+			if traction > max_traction {
+				max_traction = traction;
+			}
+		});
+
+	for (pos, speed, old_speed) in izip!(
+		layout.points.iter(),
+		layout.speeds.iter(),
+		layout.old_speeds.iter()
+	) {
+		let swinging = (speed[0] - old_speed[0]).powi(2) + (speed[1] - old_speed[1]).powi(2);
+		let traction = (speed[0] + old_speed[0]).powi(2) + (speed[1] + old_speed[1]).powi(2);
+
 		root.draw(&Circle::new(
 			unsafe {
 				(
@@ -273,7 +288,12 @@ fn draw_graph(layout: &Layout<f64>, image: Arc<RwLock<Vec<u8>>>) {
 				)
 			},
 			2,
-			Into::<ShapeStyle>::into(&RED).filled(),
+			Into::<ShapeStyle>::into(&RGBColor(
+				((swinging / max_swinging).powf(0.1) * 255.).min(255.) as u8,
+				0,
+				((traction / max_traction).powf(0.1) * 255.).min(255.) as u8,
+			))
+			.filled(),
 		))
 		.unwrap();
 	}
