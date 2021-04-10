@@ -14,7 +14,7 @@ pub trait Coord = Clone
 	+ DivAssign<Self>
 	+ FromPrimitive
 	+ NumCast
-	+ From<f32>
+	//	+ From<f32>
 	+ Signed
 	+ RealExponential
 	+ Sub<Self>

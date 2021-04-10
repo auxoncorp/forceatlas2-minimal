@@ -9,7 +9,7 @@ mod forces;
 mod layout;
 mod util;
 
-use forces::Repulsion;
+use forces::{Attraction, Repulsion};
 
 pub use layout::{Layout, Settings};
 pub use util::{Coord, Edge, Node, PointIter, PointIterMut, PointList, Position};
@@ -18,7 +18,7 @@ use itertools::izip;
 
 impl<'a, T: Coord + std::fmt::Debug> Layout<T>
 where
-	Layout<T>: forces::Repulsion<T>,
+	Layout<T>: forces::Repulsion<T> + forces::Attraction<T>,
 {
 	/// Instanciates a randomly positioned layout from an undirected graph
 	///
@@ -57,7 +57,7 @@ where
 				dimensions: settings.dimensions,
 				points: (0..nb).map(|_| T::zero()).collect(),
 			},
-			fn_attraction: forces::choose_attraction(&settings),
+			fn_attraction: Self::choose_attraction(&settings),
 			fn_gravity: forces::choose_gravity(&settings),
 			fn_repulsion: Self::choose_repulsion(&settings),
 			settings,
@@ -104,7 +104,7 @@ where
 				dimensions: settings.dimensions,
 				points: (0..nb).map(|_| T::zero()).collect(),
 			},
-			fn_attraction: forces::choose_attraction(&settings),
+			fn_attraction: Self::choose_attraction(&settings),
 			fn_gravity: forces::choose_gravity(&settings),
 			fn_repulsion: Self::choose_repulsion(&settings),
 			settings,
@@ -117,7 +117,7 @@ where
 	}
 
 	pub fn set_settings(&mut self, settings: Settings<T>) {
-		self.fn_attraction = forces::choose_attraction(&settings);
+		self.fn_attraction = Self::choose_attraction(&settings);
 		self.fn_gravity = forces::choose_gravity(&settings);
 		self.fn_repulsion = Self::choose_repulsion(&settings);
 		self.settings = settings;
@@ -360,7 +360,7 @@ mod tests {
 
 		assert_eq!(
 			alloc_counter::count_alloc(|| layout.apply_attraction()).0,
-			(1, 0, 1)
+			(0, 0, 0)
 		);
 		assert_eq!(
 			alloc_counter::count_alloc(|| layout.apply_repulsion()).0,

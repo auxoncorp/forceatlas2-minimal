@@ -8,38 +8,92 @@ use crate::{
 };
 
 #[doc(hidden)]
+pub trait Attraction<T: Coord + std::fmt::Debug> {
+	fn choose_attraction(settings: &Settings<T>) -> fn(&mut Layout<T>);
+}
+
+#[doc(hidden)]
 pub trait Repulsion<T: Coord + std::fmt::Debug> {
 	fn choose_repulsion(settings: &Settings<T>) -> fn(&mut Layout<T>);
 }
 
-#[allow(clippy::collapsible_else_if)]
-pub fn choose_attraction<T: Coord + std::fmt::Debug>(settings: &Settings<T>) -> fn(&mut Layout<T>) {
-	if settings.prevent_overlapping.is_some() {
-		if settings.lin_log {
-			if settings.dissuade_hubs {
-				attraction::apply_attraction_dh_log_po
+default impl<T> Attraction<T> for Layout<T>
+//forces::Forces<T>
+where
+	T: Coord + std::fmt::Debug,
+{
+	#[allow(clippy::collapsible_else_if)]
+	fn choose_attraction(settings: &Settings<T>) -> fn(&mut Layout<T>) {
+		if settings.prevent_overlapping.is_some() {
+			if settings.lin_log {
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh_log_po
+				} else {
+					attraction::apply_attraction_log_po
+				}
 			} else {
-				attraction::apply_attraction_log_po
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh_po
+				} else {
+					attraction::apply_attraction_po
+				}
 			}
 		} else {
-			if settings.dissuade_hubs {
-				attraction::apply_attraction_dh_po
+			if settings.lin_log {
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh_log
+				} else {
+					attraction::apply_attraction_log
+				}
 			} else {
-				attraction::apply_attraction_po
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh
+				} else {
+					attraction::apply_attraction
+				}
 			}
 		}
-	} else {
-		if settings.lin_log {
-			if settings.dissuade_hubs {
-				attraction::apply_attraction_dh_log
+	}
+}
+
+impl<T> Attraction<T> for Layout<T>
+//forces::Forces<T>
+where
+	T: Copy + Coord + std::fmt::Debug,
+{
+	#[allow(clippy::collapsible_else_if)]
+	fn choose_attraction(settings: &Settings<T>) -> fn(&mut Layout<T>) {
+		if settings.prevent_overlapping.is_some() {
+			if settings.lin_log {
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh_log_po
+				} else {
+					attraction::apply_attraction_log_po
+				}
 			} else {
-				attraction::apply_attraction_log
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh_po
+				} else {
+					attraction::apply_attraction_po
+				}
 			}
 		} else {
-			if settings.dissuade_hubs {
-				attraction::apply_attraction_dh
+			if settings.lin_log {
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh_log
+				} else {
+					attraction::apply_attraction_log
+				}
 			} else {
-				attraction::apply_attraction
+				if settings.dissuade_hubs {
+					attraction::apply_attraction_dh
+				} else {
+					match settings.dimensions {
+						2 => attraction::apply_attraction_2d,
+						3 => attraction::apply_attraction_3d,
+						_ => attraction::apply_attraction,
+					}
+				}
 			}
 		}
 	}

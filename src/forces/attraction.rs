@@ -5,16 +5,14 @@ use num_traits::cast::NumCast;
 
 pub fn apply_attraction<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	let mut di_v = valloc(layout.settings.dimensions);
-	let last_dim = layout.settings.dimensions - 1;
+	let di = di_v.as_mut_slice();
 	for (n1, n2) in layout.edges.iter() {
 		let (n1, n2) = (*n1, *n2);
 		let n1_pos = layout.points.get(n1);
-		layout.points.get_clone_slice(n2, &mut di_v);
-		let di = di_v.as_mut_slice();
+		layout.points.get_clone_slice(n2, di);
 
 		let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
-		let mut i = 0usize;
-		loop {
+		for i in 0..layout.settings.dimensions {
 			let di = unsafe { di.get_unchecked_mut(i) };
 			let n1_speed = unsafe { n1_speed.get_unchecked_mut(i) };
 			let n2_speed = unsafe { n2_speed.get_unchecked_mut(i) };
@@ -24,12 +22,53 @@ pub fn apply_attraction<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 			*di *= layout.settings.ka.clone();
 			*n1_speed += di.clone();
 			*n2_speed -= di.clone();
-
-			if i == last_dim {
-				break;
-			}
-			i += 1;
 		}
+	}
+}
+
+pub fn apply_attraction_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+	for (n1, n2) in layout.edges.iter() {
+		let (n1, n2) = (*n1, *n2);
+
+		let n1_pos = layout.points.get(n1);
+		let n2_pos = layout.points.get(n2);
+
+		let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
+
+		let dx =
+			unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) } * layout.settings.ka;
+		let dy =
+			unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) } * layout.settings.ka;
+
+		unsafe { n1_speed.get_unchecked_mut(0) }.add_assign(dx);
+		unsafe { n1_speed.get_unchecked_mut(1) }.add_assign(dy);
+		unsafe { n2_speed.get_unchecked_mut(0) }.sub_assign(dx);
+		unsafe { n2_speed.get_unchecked_mut(1) }.sub_assign(dy);
+	}
+}
+
+pub fn apply_attraction_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+	for (n1, n2) in layout.edges.iter() {
+		let (n1, n2) = (*n1, *n2);
+
+		let n1_pos = layout.points.get(n1);
+		let n2_pos = layout.points.get(n2);
+
+		let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
+
+		let dx =
+			unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) } * layout.settings.ka;
+		let dy =
+			unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) } * layout.settings.ka;
+		let dz =
+			unsafe { *n2_pos.get_unchecked(2) - *n1_pos.get_unchecked(2) } * layout.settings.ka;
+
+		unsafe { n1_speed.get_unchecked_mut(0) }.add_assign(dx);
+		unsafe { n1_speed.get_unchecked_mut(1) }.add_assign(dy);
+		unsafe { n1_speed.get_unchecked_mut(2) }.add_assign(dz);
+		unsafe { n2_speed.get_unchecked_mut(0) }.sub_assign(dx);
+		unsafe { n2_speed.get_unchecked_mut(1) }.sub_assign(dy);
+		unsafe { n2_speed.get_unchecked_mut(2) }.sub_assign(dz);
 	}
 }
 
