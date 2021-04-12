@@ -40,12 +40,13 @@ fn main() {
 			eprintln!("Ignored line {} has <2 columns", i);
 		}
 	}
+	nodes += 1;
 
-	println!("Nodes: {}", nodes + 1);
+	println!("Nodes: {}", nodes);
 
 	let mut layout = Layout::<f32>::from_graph(
 		edges,
-		nodes + 1,
+		Nodes::Degree(nodes),
 		Settings {
 			dimensions: 2,
 			dissuade_hubs: false,

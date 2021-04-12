@@ -12,9 +12,10 @@ mod util;
 use forces::{Attraction, Repulsion};
 
 pub use layout::{Layout, Settings};
-pub use util::{Coord, Edge, Node, PointIter, PointIterMut, PointList, Position};
+pub use util::{Coord, Edge, Nodes, PointIter, PointIterMut, PointList, Position};
 
 use itertools::izip;
+use num_traits::cast::NumCast;
 
 impl<'a, T: Coord + std::fmt::Debug> Layout<T>
 where
@@ -22,33 +23,41 @@ where
 {
 	/// Instanciates a randomly positioned layout from an undirected graph
 	///
-	/// Assumes edges `(n1, n2)` respect `n1 < n2`
+	/// Assumes edges `(n1, n2)` respect `n1 < n2`.
 	#[cfg(feature = "rand")]
-	pub fn from_graph(edges: Vec<Edge>, nb_nodes: usize, settings: Settings<T>) -> Self
+	pub fn from_graph(edges: Vec<Edge>, nodes: Nodes<T>, settings: Settings<T>) -> Self
 	where
 		rand::distributions::Standard: rand::distributions::Distribution<T>,
 		T: rand::distributions::uniform::SampleUniform,
 	{
-		let mut nodes: Vec<Node> = (0..nb_nodes).map(|_| Node { degree: 0 }).collect();
-		for (n1, n2) in edges.iter() {
-			nodes.get_mut(*n1).unwrap().degree += 1;
-			nodes.get_mut(*n2).unwrap().degree += 1;
-		}
+		let nodes = match nodes {
+			Nodes::Degree(nb_nodes) => {
+				let mut degrees: Vec<usize> = vec![0; nb_nodes];
+				for (n1, n2) in edges.iter() {
+					*degrees.get_mut(*n1).unwrap() += 1;
+					*degrees.get_mut(*n2).unwrap() += 1;
+				}
+				degrees
+					.into_iter()
+					.map(|degree| <T as NumCast>::from(degree).unwrap())
+					.collect()
+			}
+			Nodes::Mass(masses) => masses,
+		};
 
-		let nb = nb_nodes * settings.dimensions;
+		let nb = nodes.len() * settings.dimensions;
 		Self {
-			nodes,
 			edges,
 			points: PointList {
 				dimensions: settings.dimensions,
 				points: {
 					let mut rng = rand::thread_rng();
-					(0..nb_nodes)
+					(0..nodes.len())
 						.flat_map(|_| util::sample_unit_ncube(&mut rng, settings.dimensions))
 						.collect()
 				},
 			},
-			speed: T::one(),
+			masses: nodes,
 			speeds: PointList {
 				dimensions: settings.dimensions,
 				points: (0..nb).map(|_| T::zero()).collect(),
@@ -67,35 +76,41 @@ where
 	/// Instanciates layout from an undirected graph, using initial positions
 	///
 	/// Assumes edges `(n1, n2)` respect `n1 < n2`
-	pub fn from_position_graph<I: Iterator<Item = &'a Position<T>>>(
+	///
+	/// `nodes` is a list of coordinates, e.g. `[x1, y1, x2, y2, ...]`.
+	pub fn from_position_graph(
 		edges: Vec<Edge>,
-		nodes: I,
+		nodes: Nodes<T>,
+		positions: Vec<T>,
 		settings: Settings<T>,
 	) -> Self
 	where
 		T: 'a,
 	{
-		let mut points = Vec::new();
-		let mut nodes: Vec<Node> = nodes
-			.map(|pos| {
-				points.extend_from_slice(pos);
-				Node { degree: 0 }
-			})
-			.collect();
+		let nodes = match nodes {
+			Nodes::Degree(nb_nodes) => {
+				let mut degrees: Vec<usize> = vec![0; nb_nodes];
+				for (n1, n2) in edges.iter() {
+					*degrees.get_mut(*n1).unwrap() += 1;
+					*degrees.get_mut(*n2).unwrap() += 1;
+				}
+				degrees
+					.into_iter()
+					.map(|degree| <T as NumCast>::from(degree).unwrap())
+					.collect()
+			}
+			Nodes::Mass(masses) => masses,
+		};
 
-		for (n1, n2) in edges.iter() {
-			nodes.get_mut(*n1).unwrap().degree += 1;
-			nodes.get_mut(*n2).unwrap().degree += 1;
-		}
 		let nb = nodes.len() * settings.dimensions;
+		assert_eq!(positions.len(), nb);
 		Self {
-			nodes,
 			edges,
+			masses: nodes,
 			points: PointList {
 				dimensions: settings.dimensions,
-				points,
+				points: positions,
 			},
-			speed: T::one(),
 			speeds: PointList {
 				dimensions: settings.dimensions,
 				points: (0..nb).map(|_| T::zero()).collect(),
@@ -199,7 +214,7 @@ mod tests {
 	fn test_global() {
 		let mut layout = Layout::<f64>::from_graph(
 			vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4)],
-			5,
+			Nodes::Degree(5),
 			Settings::default(),
 		);
 
@@ -214,7 +229,8 @@ mod tests {
 	fn test_init_iteration() {
 		let mut layout = Layout::<f64>::from_position_graph(
 			vec![(0, 1)],
-			vec![vec![-1.0, -1.0].as_slice(), vec![1.0, 1.0].as_slice()].into_iter(),
+			Nodes::Degree(2),
+			vec![-1.0, -1.0, 1.0, 1.0],
 			Settings::default(),
 		);
 		layout
@@ -231,7 +247,8 @@ mod tests {
 	fn test_forces() {
 		let mut layout = Layout::<f64>::from_position_graph(
 			vec![(0, 1)],
-			vec![vec![-2.0, -2.0].as_slice(), vec![1.0, 2.0].as_slice()].into_iter(),
+			Nodes::Degree(2),
+			vec![-2.0, -2.0, 1.0, 2.0],
 			Settings::default(),
 		);
 
@@ -307,12 +324,8 @@ mod tests {
 	fn test_convergence() {
 		let mut layout = Layout::<f64>::from_position_graph(
 			vec![(0, 1), (1, 2)],
-			vec![
-				vec![-1.1, -1.0].as_slice(),
-				vec![0.0, 0.0].as_slice(),
-				vec![1.0, 1.0].as_slice(),
-			]
-			.into_iter(),
+			Nodes::Degree(3),
+			vec![-1.1, -1.0, 0.0, 0.0, 1.0, 1.0],
 			Settings {
 				dimensions: 2,
 				dissuade_hubs: false,
@@ -352,7 +365,7 @@ mod tests {
 	fn check_alloc() {
 		let mut layout = Layout::<f64>::from_graph(
 			vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4), (3, 4)],
-			5,
+			Nodes::Degree(5),
 			Settings::default(),
 		);
 

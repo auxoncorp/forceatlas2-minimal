@@ -35,8 +35,9 @@ pub fn clone_slice_mut<T: Clone>(s: &[T]) -> Vec<T> {
 
 pub type Edge = (usize, usize);
 
-pub struct Node {
-	pub degree: u32,
+pub enum Nodes<T> {
+	Mass(Vec<T>),
+	Degree(usize),
 }
 
 #[inline]
@@ -105,7 +106,9 @@ impl<'a, T> Iterator for PointIterMut<'a, T> {
 }
 
 pub struct PointList<T: Coord> {
+	/// Number of coordinates in a vector
 	pub dimensions: usize,
+	/// List of the coordinates of the vectors
 	pub points: Vec<T>,
 }
 

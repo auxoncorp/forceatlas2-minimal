@@ -25,7 +25,7 @@ fn main() {
 		.collect();
 	let mut layout = Layout::<f64>::from_graph(
 		edges,
-		NODES,
+		Nodes::Degree(NODES),
 		Settings {
 			dimensions: 2,
 			dissuade_hubs: false,

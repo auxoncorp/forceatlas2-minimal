@@ -1,13 +1,12 @@
 use crate::{layout::Layout, util::*};
 
 use itertools::izip;
-use num_traits::cast::NumCast;
 
 pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	let mut di = valloc(layout.settings.dimensions);
 	let mut n2_iter = layout.points.iter();
-	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
-		let n1_degree = n1_node.degree + 1;
+	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
+		let n1_mass = n1_mass.clone() + T::one();
 		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
 		for (n2, n2_pos) in (n1 + 1..).zip(&mut n2_iter) {
 			di.clone_from_slice(n2_pos);
@@ -24,10 +23,9 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 				continue;
 			}
 
-			let f = <T as NumCast>::from(
-				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
-			)
-			.unwrap() / d2 * layout.settings.kr.clone();
+			let f = n1_mass.clone()
+				* (unsafe { layout.masses.get_unchecked(n2) }.clone() + T::one())
+				/ d2 * layout.settings.kr.clone();
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			izip!(n1_speed.iter_mut(), n2_speed.iter_mut(), di.iter()).for_each(
@@ -42,9 +40,9 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 }
 
 pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
-	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_degree = n1_node.degree + 1;
+		let n1_mass = *n1_mass + T::one();
 		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) };
@@ -54,10 +52,8 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = <T as NumCast>::from(
-				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
-			)
-			.unwrap() / d2 * layout.settings.kr;
+			let f = n1_mass * (*unsafe { layout.masses.get_unchecked(n2) } + T::one()) / d2
+				* layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			let vx = f * dx;
@@ -76,9 +72,9 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 	#[cfg(target_arch = "x86_64")]
 	use std::arch::x86_64::*;
 
-	for (n1, (n1_node, n1_pos_s)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+	for (n1, (n1_mass, n1_pos_s)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_degree = n1_node.degree + 1;
+		let n1_mass = n1_mass + 1.;
 		let n1_pos = unsafe { _mm256_set_pd(n1_pos_s[1], n1_pos_s[0], n1_pos_s[1], n1_pos_s[0]) };
 
 		/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
@@ -141,8 +137,8 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
 				));*/
 
-				let degs2 = (n1_degree * (layout.nodes.get_unchecked(n2).degree + 1)) as f64;
-				let degs3 = (n1_degree * (layout.nodes.get_unchecked(n2 + 1).degree + 1)) as f64;
+				let degs2 = (n1_mass * (layout.masses.get_unchecked(n2) + 1.)) as f64;
+				let degs3 = (n1_mass * (layout.masses.get_unchecked(n2 + 1) + 1.)) as f64;
 				let f = _mm_mul_pd(
 					_mm_div_pd(_mm_set_pd(degs3, degs2), d2),
 					_mm_set_pd(layout.settings.kr, layout.settings.kr),
@@ -202,8 +198,8 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 				continue;
 			}
 
-			let f = (n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1)) as f64
-				/ d2 * layout.settings.kr;
+			let f = (n1_mass * (unsafe { layout.masses.get_unchecked(n2) } + 1.)) / d2
+				* layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			let vx = f * dx;
@@ -222,9 +218,9 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 	#[cfg(target_arch = "x86_64")]
 	use std::arch::x86_64::*;
 
-	for (n1, (n1_node, n1_pos_s)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+	for (n1, (n1_mass, n1_pos_s)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_degree = n1_node.degree + 1;
+		let n1_mass = n1_mass + 1.0f32;
 		let n1_pos = unsafe {
 			_mm256_set_ps(
 				n1_pos_s[1],
@@ -320,10 +316,10 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 					(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2),
 				));*/
 
-				let degs2 = (n1_degree * (layout.nodes.get_unchecked(n2).degree + 1)) as f32;
-				let degs3 = (n1_degree * (layout.nodes.get_unchecked(n2 + 1).degree + 1)) as f32;
-				let degs4 = (n1_degree * (layout.nodes.get_unchecked(n2 + 2).degree + 1)) as f32;
-				let degs5 = (n1_degree * (layout.nodes.get_unchecked(n2 + 3).degree + 1)) as f32;
+				let degs2 = n1_mass * (layout.masses.get_unchecked(n2) + 1.);
+				let degs3 = n1_mass * (layout.masses.get_unchecked(n2 + 1) + 1.);
+				let degs4 = n1_mass * (layout.masses.get_unchecked(n2 + 2) + 1.);
+				let degs5 = n1_mass * (layout.masses.get_unchecked(n2 + 3) + 1.);
 				let f = _mm_mul_ps(
 					_mm_div_ps(_mm_set_ps(degs5, degs4, degs3, degs2), d2),
 					_mm_set_ps(
@@ -403,8 +399,8 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 				continue;
 			}
 
-			let f = (n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1)) as f32
-				/ d2 * layout.settings.kr;
+			let f = (n1_mass * (unsafe { layout.masses.get_unchecked(n2) } + 1.)) / d2
+				* layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			let vx = f * dx;
@@ -420,9 +416,9 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 }
 
 pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
-	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_degree = n1_node.degree + 1;
+		let n1_mass = *n1_mass + T::one();
 		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) };
@@ -433,10 +429,8 @@ pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = <T as NumCast>::from(
-				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
-			)
-			.unwrap() / d2 * layout.settings.kr;
+			let f = n1_mass * (*unsafe { layout.masses.get_unchecked(n2) } + T::one()) / d2
+				* layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(f * dx); // n1_speed[0] += f * dx
@@ -458,9 +452,9 @@ pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 			.as_ref()
 			.unwrap_unchecked()
 	};
-	for (n1, (n1_node, n1_pos)) in layout.nodes.iter().zip(layout.points.iter()).enumerate() {
+	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_degree = n1_node.degree + 1;
+		let n1_mass = n1_mass.clone() + T::one();
 		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
 		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			di.clone_from_slice(n2_pos);
@@ -480,10 +474,9 @@ pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 			let d = d2.clone().sqrt();
 			let dprime = d.clone() - node_size.clone();
 
-			let f = <T as NumCast>::from(
-				n1_degree * (unsafe { layout.nodes.get_unchecked(n2) }.degree + 1),
-			)
-			.unwrap() / d2 * if dprime.positive() {
+			let f = n1_mass.clone()
+				* (unsafe { layout.masses.get_unchecked(n2) }.clone() + T::one())
+				/ d2 * if dprime.positive() {
 				layout.settings.kr.clone() / dprime
 			} else {
 				krprime.clone()
@@ -506,13 +499,13 @@ pub fn apply_repulsion_bh_2d(layout: &mut Layout<f64>) {
 	let particles: Vec<nbody_barnes_hut::particle_2d::Particle2D> = layout
 		.points
 		.iter()
-		.zip(layout.nodes.iter())
-		.map(|(point, node)| nbody_barnes_hut::particle_2d::Particle2D {
+		.zip(layout.masses.iter())
+		.map(|(point, mass)| nbody_barnes_hut::particle_2d::Particle2D {
 			position: nbody_barnes_hut::vector_2d::Vector2D {
 				x: point[0],
 				y: point[1],
 			},
-			mass: (node.degree + 1) as f64,
+			mass: mass + 1.,
 		})
 		.collect();
 	let tree = nbody_barnes_hut::barnes_hut_2d::QuadTree::new(
@@ -526,17 +519,14 @@ pub fn apply_repulsion_bh_2d(layout: &mut Layout<f64>) {
 	izip!(
 		particles.into_iter(),
 		layout.speeds.iter_mut(),
-		layout.nodes.iter()
+		layout.masses.iter()
 	)
-	.for_each(|(particle, speed, node)| {
+	.for_each(|(particle, speed, mass)| {
 		let nbody_barnes_hut::vector_2d::Vector2D { x, y } =
-			tree.calc_forces_on_particle(particle.position, node.degree + 1, |d2, m1, dv, m2| {
+			tree.calc_forces_on_particle(particle.position, mass + 1., |d2, m1, dv, m2| {
 				unsafe {
 					std::intrinsics::fmul_fast(
-						std::intrinsics::fmul_fast(
-							m2 as f64,
-							std::intrinsics::fdiv_fast(m1, d2.sqrt()),
-						),
+						std::intrinsics::fmul_fast(m2, std::intrinsics::fdiv_fast(m1, d2.sqrt())),
 						kr,
 					) * dv
 				}
@@ -552,13 +542,13 @@ pub fn apply_repulsion_bh_2d_po(layout: &mut Layout<f64>) {
 	let particles: Vec<nbody_barnes_hut::particle_2d::Particle2D> = layout
 		.points
 		.iter()
-		.zip(layout.nodes.iter())
-		.map(|(point, node)| nbody_barnes_hut::particle_2d::Particle2D {
+		.zip(layout.masses.iter())
+		.map(|(point, mass)| nbody_barnes_hut::particle_2d::Particle2D {
 			position: nbody_barnes_hut::vector_2d::Vector2D {
 				x: point[0],
 				y: point[1],
 			},
-			mass: (node.degree + 1) as f64,
+			mass: mass + 1.,
 		})
 		.collect();
 	let tree = nbody_barnes_hut::barnes_hut_2d::QuadTree::new(
@@ -572,11 +562,11 @@ pub fn apply_repulsion_bh_2d_po(layout: &mut Layout<f64>) {
 	izip!(
 		particles.into_iter(),
 		layout.speeds.iter_mut(),
-		layout.nodes.iter()
+		layout.masses.iter()
 	)
-	.for_each(|(particle, speed, node)| {
+	.for_each(|(particle, speed, mass)| {
 		let nbody_barnes_hut::vector_2d::Vector2D { x, y } =
-			tree.calc_forces_on_particle(particle.position, node.degree + 1, |d2, m1, dv, m2| {
+			tree.calc_forces_on_particle(particle.position, mass + 1., |d2, m1, dv, m2| {
 				let d = d2.sqrt();
 				let dprime = d - node_size;
 				(if dprime.positive() {
@@ -585,8 +575,7 @@ pub fn apply_repulsion_bh_2d_po(layout: &mut Layout<f64>) {
 					return nbody_barnes_hut::vector_2d::Vector2D { x: 0.0, y: 0.0 };
 				} else {
 					krprime
-				}) * m1 * m2 as f64 / d
-					* dv
+				}) * m1 * m2 / d * dv
 			});
 		speed[0] -= x;
 		speed[1] -= y;
@@ -598,14 +587,14 @@ pub fn apply_repulsion_bh_3d(layout: &mut Layout<f64>) {
 	let particles: Vec<nbody_barnes_hut::particle_3d::Particle3D> = layout
 		.points
 		.iter()
-		.zip(layout.nodes.iter())
-		.map(|(point, node)| nbody_barnes_hut::particle_3d::Particle3D {
+		.zip(layout.masses.iter())
+		.map(|(point, mass)| nbody_barnes_hut::particle_3d::Particle3D {
 			position: nbody_barnes_hut::vector_3d::Vector3D {
 				x: point[0],
 				y: point[1],
 				z: point[2],
 			},
-			mass: (node.degree + 1) as f64,
+			mass: mass + 1.,
 		})
 		.collect();
 	let tree = nbody_barnes_hut::barnes_hut_3d::OctTree::new(
@@ -618,12 +607,12 @@ pub fn apply_repulsion_bh_3d(layout: &mut Layout<f64>) {
 	izip!(
 		particles.into_iter(),
 		layout.speeds.iter_mut(),
-		layout.nodes.iter()
+		layout.masses.iter()
 	)
-	.for_each(|(particle, speed, node)| {
+	.for_each(|(particle, speed, mass)| {
 		let nbody_barnes_hut::vector_3d::Vector3D { x, y, z } =
-			tree.calc_forces_on_particle(particle.position, node.degree + 1, |d2, m1, dv, m2| {
-				m2 as f64 * m1 / d2.sqrt() * kr * dv
+			tree.calc_forces_on_particle(particle.position, mass + 1., |d2, m1, dv, m2| {
+				m2 * m1 / d2.sqrt() * kr * dv
 			});
 		speed[0] -= x;
 		speed[1] -= y;
@@ -636,14 +625,14 @@ pub fn apply_repulsion_bh_3d_po(layout: &mut Layout<f64>) {
 	let particles: Vec<nbody_barnes_hut::particle_3d::Particle3D> = layout
 		.points
 		.iter()
-		.zip(layout.nodes.iter())
-		.map(|(point, node)| nbody_barnes_hut::particle_3d::Particle3D {
+		.zip(layout.masses.iter())
+		.map(|(point, mass)| nbody_barnes_hut::particle_3d::Particle3D {
 			position: nbody_barnes_hut::vector_3d::Vector3D {
 				x: point[0],
 				y: point[1],
 				z: point[2],
 			},
-			mass: (node.degree + 1) as f64,
+			mass: mass + 1.,
 		})
 		.collect();
 	let tree = nbody_barnes_hut::barnes_hut_3d::OctTree::new(
@@ -657,11 +646,11 @@ pub fn apply_repulsion_bh_3d_po(layout: &mut Layout<f64>) {
 	izip!(
 		particles.into_iter(),
 		layout.speeds.iter_mut(),
-		layout.nodes.iter()
+		layout.masses.iter()
 	)
-	.for_each(|(particle, speed, node)| {
+	.for_each(|(particle, speed, mass)| {
 		let nbody_barnes_hut::vector_3d::Vector3D { x, y, z } =
-			tree.calc_forces_on_particle(particle.position, node.degree + 1, |d2, m1, dv, m2| {
+			tree.calc_forces_on_particle(particle.position, mass + 1., |d2, m1, dv, m2| {
 				let d = d2.sqrt();
 				let dprime = d - node_size;
 				(if dprime.positive() {
@@ -674,51 +663,10 @@ pub fn apply_repulsion_bh_3d_po(layout: &mut Layout<f64>) {
 					};
 				} else {
 					krprime
-				}) * m1 * m2 as f64 / d
-					* dv
+				}) * m1 * m2 / d * dv
 			});
 		speed[0] -= x;
 		speed[1] -= y;
 		speed[2] -= z;
 	});
 }
-
-/*#[cfg(feature = "barnes_hut")]
-impl Layout<f64> {
-
-}
-
-// This trait was needed to allow specialization
-#[doc(hidden)]
-pub trait Repulsion {
-	fn apply_repulsion(&mut self);
-}
-
-#[cfg(not(feature = "barnes_hut"))]
-impl<T: Coord + std::fmt::Debug> Repulsion for Layout<T> {
-	fn apply_repulsion(&mut self) {
-		self.inner_apply_repulsion()
-	}
-}
-
-#[cfg(feature = "barnes_hut")]
-default impl<T: Coord + std::fmt::Debug> Repulsion for Layout<T> {
-	fn apply_repulsion(&mut self) {
-		if self.settings.barnes_hut.is_none() {
-			self.inner_apply_repulsion()
-		} else {
-			unimplemented!("Barnes-Hut only implemented for Layout<f64>")
-		}
-	}
-}
-
-#[cfg(feature = "barnes_hut")]
-impl Repulsion for Layout<f64> {
-	fn apply_repulsion(&mut self) {
-		if self.settings.barnes_hut.is_some() {
-			self.inner_apply_repulsion_barnes_hut()
-		} else {
-			self.inner_apply_repulsion()
-		}
-	}
-}*/

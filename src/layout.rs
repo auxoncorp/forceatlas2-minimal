@@ -48,11 +48,10 @@ impl<T: Coord> Default for Settings<T> {
 
 pub struct Layout<T: Coord> {
 	pub edges: Vec<Edge>,
-	pub nodes: Vec<Node>,
+	pub masses: Vec<T>,
 	/// List of the nodes' positions
 	pub points: PointList<T>,
 	pub(crate) settings: Settings<T>,
-	pub speed: T,
 	pub speeds: PointList<T>,
 	pub old_speeds: PointList<T>,
 

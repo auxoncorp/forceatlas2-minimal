@@ -1,7 +1,6 @@
 use crate::{layout::Layout, util::*};
 
 use itertools::izip;
-use num_traits::cast::NumCast;
 
 pub fn apply_attraction<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	let mut di_v = valloc(layout.settings.dimensions);
@@ -78,10 +77,10 @@ pub fn apply_attraction_dh<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 		let n1_pos = layout.points.get(*n1);
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
-		let n1_degree = <T as NumCast>::from(layout.nodes.get(*n1).unwrap().degree).unwrap();
+		let n1_mass = layout.masses.get(*n1).unwrap().clone();
 		for (n1_speed, n1_pos, di) in izip!(n1_speed, n1_pos, di.iter_mut()) {
 			*di -= n1_pos.clone();
-			*di /= n1_degree.clone();
+			*di /= n1_mass.clone();
 			*di *= layout.settings.ka.clone();
 			*n1_speed += di.clone();
 		}
@@ -133,8 +132,8 @@ pub fn apply_attraction_dh_log<T: Coord + std::fmt::Debug>(layout: &mut Layout<T
 		}
 		d = d.sqrt();
 
-		let n1_degree = <T as NumCast>::from(layout.nodes.get(*n1).unwrap().degree).unwrap();
-		let f = d.clone().ln_1p() / d / n1_degree * layout.settings.ka.clone();
+		let n1_mass = layout.masses.get(*n1).unwrap().clone();
+		let f = d.clone().ln_1p() / d / n1_mass * layout.settings.ka.clone();
 
 		let n1_speed = layout.speeds.get_mut(*n1);
 		for i in 0usize..layout.settings.dimensions {
@@ -195,8 +194,8 @@ pub fn apply_attraction_dh_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>
 			dbg!(dprime);
 			continue;
 		}
-		let n1_degree = <T as NumCast>::from(layout.nodes.get(*n1).unwrap().degree).unwrap();
-		let f = dprime / d / n1_degree * layout.settings.ka.clone();
+		let n1_mass = layout.masses.get(*n1).unwrap().clone();
+		let f = dprime / d / n1_mass * layout.settings.ka.clone();
 
 		let n1_speed = layout.speeds.get_mut(*n1);
 		for i in 0usize..layout.settings.dimensions {
@@ -256,8 +255,8 @@ pub fn apply_attraction_dh_log_po<T: Coord + std::fmt::Debug>(layout: &mut Layou
 		if dprime.non_positive() {
 			continue;
 		}
-		let n1_degree = <T as NumCast>::from(layout.nodes.get(*n1).unwrap().degree).unwrap();
-		let f = dprime.clone().ln_1p() / dprime / n1_degree * layout.settings.ka.clone();
+		let n1_mass = layout.masses.get(*n1).unwrap().clone();
+		let f = dprime.clone().ln_1p() / dprime / n1_mass * layout.settings.ka.clone();
 
 		let n1_speed = layout.speeds.get_mut(*n1);
 		for i in 0usize..layout.settings.dimensions {

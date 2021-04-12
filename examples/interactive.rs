@@ -94,10 +94,9 @@ fn main() {
 			eprintln!("Ignored line {} has <2 columns", i);
 		}
 	}
-	println!("{:?}", edges);
-	println!("{:?}", nodes);
+	nodes += 1;
 
-	println!("Nodes: {}", nodes + 1);
+	println!("Nodes: {}", nodes);
 
 	let mut settings = Settings {
 		dimensions: 2,
@@ -112,7 +111,7 @@ fn main() {
 
 	let layout = Arc::new(RwLock::new(Layout::<f64>::from_graph(
 		edges.clone(),
-		nodes + 1,
+		Nodes::Degree(nodes),
 		settings.clone(),
 	)));
 	let image = Arc::new(RwLock::new(vec![
@@ -178,7 +177,7 @@ fn main() {
 			}
 			Some("r") => {
 				let mut layout = layout.write().unwrap();
-				*layout = Layout::from_graph(edges.clone(), nodes + 1, settings.clone());
+				*layout = Layout::from_graph(edges.clone(), Nodes::Degree(nodes), settings.clone());
 			}
 			Some("p") => println!("ka={}  kg={}  kr={}", settings.ka, settings.kg, settings.kr,),
 			Some("i") => println!("{}", iters.read().unwrap()),
