@@ -75,6 +75,13 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 	for (n1, (n1_mass, n1_pos_s)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
 		let n1_mass = n1_mass + 1.;
+		let n1_speed = unsafe {
+			layout
+				.speeds
+				.points
+				.as_mut_ptr()
+				.add(n1 * layout.settings.dimensions)
+		};
 		let n1_pos = unsafe { _mm256_set_pd(n1_pos_s[1], n1_pos_s[0], n1_pos_s[1], n1_pos_s[0]) };
 
 		/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
@@ -151,9 +158,11 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
 				));*/
 
-				// TODO get n1_speed raw pointer at the first loop level
-				let (n1_speed, n23_speed) = layout.speeds.get_2_mut(n1, n2);
-				let (n1_speed, n23_speed) = (n1_speed.as_mut_ptr(), n23_speed.as_mut_ptr());
+				let n23_speed = layout
+					.speeds
+					.points
+					.as_mut_ptr()
+					.add(n2 * layout.settings.dimensions);
 				let (n1_speed_v, n23_speed_v): (__m128d, __m256d) =
 					(_mm_loadu_pd(n1_speed), _mm256_loadu_pd(n23_speed));
 
@@ -221,6 +230,13 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 	for (n1, (n1_mass, n1_pos_s)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
 		let n1_mass = n1_mass + 1.0f32;
+		let n1_speed = unsafe {
+			layout
+				.speeds
+				.points
+				.as_mut_ptr()
+				.add(n1 * layout.settings.dimensions)
+		};
 		let n1_pos = unsafe {
 			_mm256_set_ps(
 				n1_pos_s[1],
@@ -341,9 +357,11 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 					(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
 				));*/
 
-				// TODO get n1_speed raw pointer at the first loop level
-				let (n1_speed, n2345_speed) = layout.speeds.get_2_mut(n1, n2);
-				let (n1_speed, n2345_speed) = (n1_speed.as_mut_ptr(), n2345_speed.as_mut_ptr());
+				let n2345_speed = layout
+					.speeds
+					.points
+					.as_mut_ptr()
+					.add(n2 * layout.settings.dimensions);
 				let (n1_speed_v, n2345_speed_v): (__m128, __m256) =
 					(_mm_loadu_ps(n1_speed), _mm256_loadu_ps(n2345_speed));
 

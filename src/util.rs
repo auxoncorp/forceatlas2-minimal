@@ -55,6 +55,16 @@ pub fn valloc<T>(n: usize) -> Vec<T> {
 	v
 }
 
+unsafe fn split_at_mut_unchecked<T>(s: &mut [T], mid: usize) -> (&mut [T], &mut [T]) {
+	let len = s.len();
+	let ptr = s.as_mut_ptr();
+
+	(
+		std::slice::from_raw_parts_mut(ptr, mid),
+		std::slice::from_raw_parts_mut(ptr.add(mid), len - mid),
+	)
+}
+
 pub struct PointIter<'a, T> {
 	pub dimensions: usize,
 	pub offset: usize,
@@ -136,11 +146,13 @@ impl<'a, T: Coord> PointList<T> {
 	pub fn get_2_mut(&mut self, n1: usize, n2: usize) -> (&mut Position<T>, &mut Position<T>) {
 		let offset1 = n1 * self.dimensions;
 		let offset2 = n2 * self.dimensions;
-		let (s1, s2) = self.points.split_at_mut(offset2);
-		(
-			unsafe { s1.get_unchecked_mut(offset1..offset1 + self.dimensions) },
-			unsafe { s2.get_unchecked_mut(..self.dimensions) },
-		)
+		unsafe {
+			let (s1, s2) = split_at_mut_unchecked(&mut self.points, offset2);
+			(
+				s1.get_unchecked_mut(offset1..offset1 + self.dimensions),
+				s2.get_unchecked_mut(..self.dimensions),
+			)
+		}
 	}
 	#[inline(always)]
 	pub fn set(&mut self, n: usize, val: &Position<T>) {

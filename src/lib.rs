@@ -1,4 +1,5 @@
 #![feature(specialization)]
+#![feature(slice_split_at_unchecked)]
 #![feature(stdsimd)]
 #![feature(trait_alias)]
 #![allow(incomplete_features)]
