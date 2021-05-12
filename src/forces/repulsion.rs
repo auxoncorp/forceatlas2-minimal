@@ -1,14 +1,27 @@
-use crate::{layout::Layout, util::*};
+use crate::{iter::*, layout::*, util::*};
 
 use itertools::izip;
+use rayon::prelude::*;
 
 pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+	let kr = layout.settings.kr.clone();
 	let mut di = valloc(layout.settings.dimensions);
-	let mut n2_iter = layout.points.iter();
-	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
+	for Node {
+		mass: n1_mass,
+		n2_iter,
+		pos: n1_pos,
+		speed: n1_speed,
+		..
+	} in layout.iter_nodes()
+	{
 		let n1_mass = n1_mass.clone() + T::one();
-		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
-		for (n2, n2_pos) in (n1 + 1..).zip(&mut n2_iter) {
+		for Node2 {
+			mass: n2_mass,
+			pos: n2_pos,
+			speed: n2_speed,
+			..
+		} in n2_iter
+		{
 			di.clone_from_slice(n2_pos);
 
 			let d2 = di
@@ -23,11 +36,8 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 				continue;
 			}
 
-			let f = n1_mass.clone()
-				* (unsafe { layout.masses.get_unchecked(n2) }.clone() + T::one())
-				/ d2 * layout.settings.kr.clone();
+			let f = n1_mass.clone() * (n2_mass.clone() + T::one()) / d2 * kr.clone();
 
-			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			izip!(n1_speed.iter_mut(), n2_speed.iter_mut(), di.iter()).for_each(
 				|(n1_speed, n2_speed, di)| {
 					let s = f.clone() * di.clone();
@@ -36,6 +46,45 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 				},
 			);
 		}
+	}
+}
+
+pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout: &mut Layout<T>) {
+	let kr = layout.settings.kr.clone();
+	let dimensions = layout.settings.dimensions;
+
+	for chunk_iter in layout.iter_par_nodes(layout.settings.chunk_size.unwrap()) {
+		chunk_iter.for_each(|n1_iter| {
+			let mut di = valloc(dimensions);
+			for n1 in n1_iter {
+				let n1_mass = n1.mass.clone() + T::one();
+				for n2 in n1.n2_iter {
+					di.clone_from_slice(n2.pos);
+
+					let d2 = di
+						.iter_mut()
+						.zip(n1.pos.iter())
+						.map(|(di, n1_pos)| {
+							*di -= n1_pos.clone();
+							di.clone().pow_n(2u32)
+						})
+						.sum::<T>();
+					if d2.is_zero() {
+						continue;
+					}
+
+					let f = n1_mass.clone() * (n2.mass.clone() + T::one()) / d2 * kr.clone();
+
+					izip!(n1.speed.iter_mut(), n2.speed.iter_mut(), di.iter()).for_each(
+						|(n1_speed, n2_speed, di)| {
+							let s = f.clone() * di.clone();
+							*n1_speed -= s.clone();
+							*n2_speed += s;
+						},
+					);
+				}
+			}
+		});
 	}
 }
 
@@ -263,7 +312,7 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 			));
 		}*/
 
-		// This loop iterates on nodes by 2
+		// This loop iterates on nodes by 4
 		let n2_max = n1 & (usize::MAX - 3);
 		let mut n2 = 0usize;
 		while n2 < n2_max {
@@ -432,6 +481,212 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 		}
 	}
 }
+
+/*pub fn apply_repulsion_2d_simd_f32_parallel(layout: &mut Layout<f32>) {
+	#[cfg(target_arch = "x86")]
+	use std::arch::x86::*;
+	#[cfg(target_arch = "x86_64")]
+	use std::arch::x86_64::*;
+
+	let chunk_size = 128;
+	let n = layout.masses.len() - (layout.masses.len() % chunk_size);
+
+	for y0 in (0..n).step_by(chunk_size) {
+		(0..n - y0)
+			.into_par_iter()
+			.step_by(chunk_size)
+			.for_each(|x0| {
+				for (n1, n1_pos_s, n1_mass) in izip!(
+					x0..x0 + chunk_size,
+					layout.points.iter_from(x0),
+					layout.masses[x0..].iter(),
+				) {
+					//println!("n1: {}", n1);
+
+					let mut n2_iter = layout.points.iter_from(((n1 + 4) / 4 * 4).max(x0 + y0));
+					let n1_mass = n1_mass + 1.0f32;
+					let n1_speed = unsafe {
+						layout
+							.speeds
+							.points
+							.as_mut_ptr()
+							.add(n1 * layout.settings.dimensions)
+					};
+					let n1_pos = unsafe {
+						_mm256_set_ps(
+							n1_pos_s[1],
+							n1_pos_s[0],
+							n1_pos_s[1],
+							n1_pos_s[0],
+							n1_pos_s[1],
+							n1_pos_s[0],
+							n1_pos_s[1],
+							n1_pos_s[0],
+						)
+					};
+
+					/*unsafe {
+						assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(n1_pos), (
+							layout.points.get(n1)[0],
+							layout.points.get(n1)[1],
+							layout.points.get(n1)[0],
+							layout.points.get(n1)[1],
+							layout.points.get(n1)[0],
+							layout.points.get(n1)[1],
+							layout.points.get(n1)[0],
+							layout.points.get(n1)[1],
+						));
+					}*/
+
+					// TODO remaining (if n1+1 not multiple of 4)
+
+					for n2 in (((n1 + 4) / 4 * 4).max(x0 + y0)..x0 + y0 + chunk_size).step_by(4) {
+						//println!("n2: {} {} {} {} {}", n, x0, y0, n1, n2);
+
+						unsafe {
+							// [n2_x, n2_y, n3_x, n3_y, n4_x, n4_y, n5_x, n5_y]
+							let n2345_pos = _mm256_loadu_ps(n2_iter.next_unchecked(4));
+
+							/*assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(n2345_pos), (
+								layout.points.get(n2)[0],
+								layout.points.get(n2)[1],
+								layout.points.get(n2+1)[0],
+								layout.points.get(n2+1)[1],
+								layout.points.get(n2+2)[0],
+								layout.points.get(n2+2)[1],
+								layout.points.get(n2+3)[0],
+								layout.points.get(n2+3)[1],
+							));*/
+
+							// [dx(n1,n2), dy(n1,n2), dx(n1,n3), dy(n1,n3), dx(n1,n4), dy(n1,n4), dx(n1,n5), dy(n1,n5)]
+							let dxy = _mm256_sub_ps(n2345_pos, n1_pos);
+
+							/*assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(dxy), (
+								layout.points.get(n2)[0] - layout.points.get(n1)[0],
+								layout.points.get(n2)[1] - layout.points.get(n1)[1],
+								layout.points.get(n2+1)[0] - layout.points.get(n1)[0],
+								layout.points.get(n2+1)[1] - layout.points.get(n1)[1],
+								layout.points.get(n2+2)[0] - layout.points.get(n1)[0],
+								layout.points.get(n2+2)[1] - layout.points.get(n1)[1],
+								layout.points.get(n2+3)[0] - layout.points.get(n1)[0],
+								layout.points.get(n2+3)[1] - layout.points.get(n1)[1],
+							));*/
+
+							// ([dx(n1,n2)^2, dx(n1,n3)^2, dx(n1,n4)^2, dx(n1,n5)^2], [dy(n1,n2)^2, dy(n1,n3)^2, dy(n1,n4)^2, dy(n1,n5)^2])
+							let (dx2, dy2): (__m128, __m128) =
+								std::mem::transmute(_mm256_permutevar8x32_ps(
+									_mm256_mul_ps(dxy, dxy),
+									_mm256_set_epi32(7, 5, 3, 1, 6, 4, 2, 0),
+								));
+
+							/*assert_eq!((std::mem::transmute::<__m128, (f32,f32,f32,f32)>(dx2), std::mem::transmute::<__m128, (f32,f32,f32,f32)>(dy2)), (
+								(
+									(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2),
+									(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2),
+									(layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2),
+									(layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)
+								),
+								(
+									(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+									(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
+									(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2),
+									(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2)
+								)
+							));*/
+
+							// [d(n1,n2), d(n1,n3), d(n1,n4), d(n1,n5)]
+							let d2 = _mm_add_ps(dx2, dy2);
+							// TODO maybe check zero
+
+							/*assert_eq!(std::mem::transmute::<__m128, (f32,f32,f32,f32)>(d2), (
+								(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
+								(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
+								(layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2),
+								(layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2),
+							));*/
+
+							let degs2 = n1_mass * (layout.masses.get_unchecked(n2) + 1.);
+							let degs3 = n1_mass * (layout.masses.get_unchecked(n2 + 1) + 1.);
+							let degs4 = n1_mass * (layout.masses.get_unchecked(n2 + 2) + 1.);
+							let degs5 = n1_mass * (layout.masses.get_unchecked(n2 + 3) + 1.);
+							let f = _mm_mul_ps(
+								_mm_div_ps(_mm_set_ps(degs5, degs4, degs3, degs2), d2),
+								_mm_set_ps(
+									layout.settings.kr,
+									layout.settings.kr,
+									layout.settings.kr,
+									layout.settings.kr,
+								),
+							);
+
+							/*assert_eq!(std::mem::transmute::<__m128, (f32,f32,f32,f32)>(f), (
+								degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+								degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+								degs4/((layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+								degs5/((layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
+							));*/
+
+							let n2345_speed = layout
+								.speeds
+								.points
+								.as_mut_ptr()
+								.add(n2 * layout.settings.dimensions);
+							let (n1_speed_v, n2345_speed_v): (__m128, __m256) =
+								(_mm_loadu_ps(n1_speed), _mm256_loadu_ps(n2345_speed));
+
+							let fxy = _mm256_mul_ps(
+								dxy,
+								_mm256_permutevar8x32_ps(
+									_mm256_set_m128(f, f),
+									_mm256_set_epi32(7, 3, 6, 2, 5, 1, 4, 0),
+								),
+							);
+
+							/*assert_eq!(std::mem::transmute::<__m256, (f32,f32,f32,f32,f32,f32,f32,f32)>(fxy), (
+								degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[0] - layout.points.get(n1)[0]),
+								degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[1] - layout.points.get(n1)[1]),
+								degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]),
+								degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]),
+								degs4/((layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+2)[0] - layout.points.get(n1)[0]),
+								degs4/((layout.points.get(n2+2)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+2)[1] - layout.points.get(n1)[1]),
+								degs5/((layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+3)[0] - layout.points.get(n1)[0]),
+								degs5/((layout.points.get(n2+3)[0] - layout.points.get(n1)[0]).powi(2)+
+								(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+3)[1] - layout.points.get(n1)[1]),
+							));*/
+
+							_mm256_storeu_ps(n2345_speed, _mm256_add_ps(n2345_speed_v, fxy));
+							_mm_storeu_ps(
+								n1_speed,
+								_mm_sub_ps(
+									n1_speed_v,
+									_mm_add_ps(
+										_mm256_extractf128_ps(fxy, 1),
+										_mm256_extractf128_ps(fxy, 0),
+									),
+								),
+							);
+						}
+					}
+				}
+			});
+	}
+	// TODO remaining (if n not multiple of chunk_size)
+}*/
 
 pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {

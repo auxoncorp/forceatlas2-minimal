@@ -256,6 +256,7 @@ fn main() {
 		edges,
 		Nodes::Degree(nb_nodes),
 		Settings {
+			chunk_size: Some(256),
 			dimensions: 3,
 			dissuade_hubs: false,
 			ka: 0.1,

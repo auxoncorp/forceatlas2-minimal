@@ -1,5 +1,4 @@
 #![feature(specialization)]
-#![feature(slice_split_at_unchecked)]
 #![feature(stdsimd)]
 #![feature(trait_alias)]
 #![allow(incomplete_features)]
@@ -7,6 +6,7 @@
 #![feature(core_intrinsics)]
 
 mod forces;
+mod iter;
 mod layout;
 mod util;
 
@@ -146,7 +146,7 @@ where
 		self.apply_repulsion();
 		self.apply_gravity();
 		self.apply_forces();
-		self.apply_repulsion();
+		//self.apply_repulsion(); // TODO fix that wtf
 	}
 
 	fn init_iteration(&mut self) {
@@ -179,7 +179,7 @@ where
 	fn apply_forces(&mut self) {
 		for (pos, speed, old_speed) in izip!(
 			self.points.iter_mut(),
-			self.speeds.iter(),
+			self.speeds.iter_mut(),
 			self.old_speeds.iter()
 		) {
 			let swinging = speed
@@ -192,11 +192,14 @@ where
 				.zip(old_speed.iter())
 				.map(|(s, old_s)| (s.clone() + old_s.clone()).pow_n(2u32))
 				.sum::<T>();
-			let f = (traction).ln() / (swinging.sqrt() + T::one());
+			let f = (traction).ln_1p() / (swinging.sqrt() + T::one());
 
 			pos.iter_mut()
-				.zip(speed.iter())
-				.for_each(|(pos, speed)| *pos += speed.clone() * f.clone());
+				.zip(speed.iter_mut())
+				.for_each(|(pos, speed)| {
+					*speed *= f.clone();
+					*pos += speed.clone();
+				});
 		}
 	}
 }
@@ -328,6 +331,8 @@ mod tests {
 			Nodes::Degree(3),
 			vec![-1.1, -1.0, 0.0, 0.0, 1.0, 1.0],
 			Settings {
+				#[cfg(feature = "parallel")]
+				chunk_size: None,
 				dimensions: 2,
 				dissuade_hubs: false,
 				ka: 0.5,

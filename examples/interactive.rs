@@ -13,6 +13,7 @@ use std::{
 const DRAW_LINKS: bool = true;
 const SIZE: (u32, u32) = (800, 800);
 const FRAMEDUR: u64 = 30;
+type T = f32;
 
 pub fn run(image: Arc<RwLock<Vec<u8>>>) {
 	let sdl_context = sdl2::init().unwrap();
@@ -99,6 +100,7 @@ fn main() {
 	println!("Nodes: {}", nodes);
 
 	let mut settings = Settings {
+		chunk_size: Some(256),
 		dimensions: 2,
 		dissuade_hubs: false,
 		ka: 0.01,
@@ -109,7 +111,7 @@ fn main() {
 		strong_gravity: false,
 	};
 
-	let layout = Arc::new(RwLock::new(Layout::<f64>::from_graph(
+	let layout = Arc::new(RwLock::new(Layout::<T>::from_graph(
 		edges.clone(),
 		Nodes::Degree(nodes),
 		settings.clone(),
@@ -157,7 +159,6 @@ fn main() {
 				println!("ka <f64>  attraction");
 				println!("kg <f64>  gravity");
 				println!("kr <f64>  repulsion");
-				println!("jt <f64>  jitter tolerance");
 			}
 			Some("s") => {
 				let mut computing = computing.write().unwrap();
@@ -188,7 +189,7 @@ fn main() {
 	.unwrap();
 }
 
-fn draw_graph(layout: &Layout<f64>, image: Arc<RwLock<Vec<u8>>>) {
+fn draw_graph(layout: &Layout<T>, image: Arc<RwLock<Vec<u8>>>) {
 	let mut min_v = layout.points.get_clone(0);
 	let mut max_v = min_v.clone();
 	let min = min_v.as_mut_slice();
@@ -209,12 +210,12 @@ fn draw_graph(layout: &Layout<f64>, image: Arc<RwLock<Vec<u8>>>) {
 	}
 	let graph_size = (max[0] - min[0], max[1] - min[1]);
 	let factor = {
-		let factors = (SIZE.0 as f64 / graph_size.0, SIZE.1 as f64 / graph_size.1);
+		let factors = (SIZE.0 as T / graph_size.0, SIZE.1 as T / graph_size.1);
 		if factors.0 > factors.1 {
-			min[0] -= (SIZE.0 as f64 / factors.1 - graph_size.0) / 2.0;
+			min[0] -= (SIZE.0 as T / factors.1 - graph_size.0) / 2.0;
 			factors.1
 		} else {
-			min[1] -= (SIZE.1 as f64 / factors.0 - graph_size.1) / 2.0;
+			min[1] -= (SIZE.1 as T / factors.0 - graph_size.1) / 2.0;
 			factors.0
 		}
 	};

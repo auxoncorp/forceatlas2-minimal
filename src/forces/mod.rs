@@ -18,7 +18,6 @@ pub trait Repulsion<T: Coord + std::fmt::Debug> {
 }
 
 default impl<T> Attraction<T> for Layout<T>
-//forces::Forces<T>
 where
 	T: Coord + std::fmt::Debug,
 {
@@ -57,7 +56,6 @@ where
 }
 
 impl<T> Attraction<T> for Layout<T>
-//forces::Forces<T>
 where
 	T: Copy + Coord + std::fmt::Debug,
 {
@@ -111,7 +109,6 @@ pub fn choose_gravity<T: Coord + std::fmt::Debug>(settings: &Settings<T>) -> fn(
 }
 
 default impl<T> Repulsion<T> for Layout<T>
-//forces::Forces<T>
 where
 	T: Coord + std::fmt::Debug,
 {
@@ -128,7 +125,28 @@ where
 	}
 }
 
-impl Repulsion<f64> for Layout<f64> /*forces::Forces<f64>*/ {
+default impl<T: Send + Sync> Repulsion<T> for Layout<T>
+where
+	T: Coord + std::fmt::Debug,
+{
+	fn choose_repulsion(settings: &Settings<T>) -> fn(&mut Layout<T>) {
+		#[cfg(feature = "barnes_hut")]
+		if settings.barnes_hut.is_some() {
+			unimplemented!("Barnes-Hut only implemented for f64")
+		}
+		if settings.prevent_overlapping.is_some() {
+			repulsion::apply_repulsion_po
+		} else {
+			#[cfg(feature = "parallel")]
+			if settings.chunk_size.is_some() {
+				return repulsion::apply_repulsion_parallel;
+			}
+			repulsion::apply_repulsion
+		}
+	}
+}
+
+impl Repulsion<f64> for Layout<f64> {
 	fn choose_repulsion(settings: &Settings<f64>) -> fn(&mut Layout<f64>) {
 		#[cfg(feature = "barnes_hut")]
 		if settings.barnes_hut.is_some() {
@@ -164,7 +182,13 @@ impl Repulsion<f64> for Layout<f64> /*forces::Forces<f64>*/ {
 					repulsion::apply_repulsion_2d
 				}
 				3 => repulsion::apply_repulsion_3d,
-				_ => repulsion::apply_repulsion,
+				_ => {
+					#[cfg(feature = "parallel")]
+					if settings.chunk_size.is_some() {
+						return repulsion::apply_repulsion_parallel;
+					}
+					repulsion::apply_repulsion
+				}
 			}
 		}
 	}
@@ -186,7 +210,13 @@ impl Repulsion<f32> for Layout<f32> {
 					repulsion::apply_repulsion_2d
 				}
 				3 => repulsion::apply_repulsion_3d,
-				_ => repulsion::apply_repulsion,
+				_ => {
+					#[cfg(feature = "parallel")]
+					if settings.chunk_size.is_some() {
+						return repulsion::apply_repulsion_parallel;
+					}
+					repulsion::apply_repulsion
+				}
 			}
 		}
 	}

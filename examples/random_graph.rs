@@ -2,12 +2,13 @@ use forceatlas2::*;
 use plotters::prelude::*;
 use rand::Rng;
 
-const EDGES: usize = 50_000;
-const NODES: usize = 5_000;
+const EDGES: usize = 80_000;
+const NODES: usize = 10_000;
+type T = f32;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
-const ITERATIONS: u32 = 50;
+const ITERATIONS: u32 = 1000;
 const ANIM_MODE: bool = false;
 
 fn main() {
@@ -23,10 +24,11 @@ fn main() {
 			}
 		})
 		.collect();
-	let mut layout = Layout::<f64>::from_graph(
+	let mut layout = Layout::<T>::from_graph(
 		edges,
 		Nodes::Degree(NODES),
 		Settings {
+			chunk_size: Some(256),
 			dimensions: 2,
 			dissuade_hubs: false,
 			ka: 0.5,
@@ -49,7 +51,7 @@ fn main() {
 	draw_graph(&layout, ITERATIONS);
 }
 
-fn draw_graph(layout: &Layout<f64>, iteration: u32) {
+fn draw_graph(layout: &Layout<T>, iteration: u32) {
 	let mut min_v = layout.points.get_clone(0);
 	let mut max_v = min_v.clone();
 	let min = min_v.as_mut_slice();
@@ -70,12 +72,12 @@ fn draw_graph(layout: &Layout<f64>, iteration: u32) {
 	}
 	let graph_size = (max[0] - min[0], max[1] - min[1]);
 	let factor = {
-		let factors = (SIZE.0 as f64 / graph_size.0, SIZE.1 as f64 / graph_size.1);
+		let factors = (SIZE.0 as T / graph_size.0, SIZE.1 as T / graph_size.1);
 		if factors.0 > factors.1 {
-			min[0] -= (SIZE.0 as f64 / factors.1 - graph_size.0) / 2.0;
+			min[0] -= (SIZE.0 as T / factors.1 - graph_size.0) / 2.0;
 			factors.1
 		} else {
-			min[1] -= (SIZE.1 as f64 / factors.0 - graph_size.1) / 2.0;
+			min[1] -= (SIZE.1 as T / factors.0 - graph_size.1) / 2.0;
 			factors.0
 		}
 	};

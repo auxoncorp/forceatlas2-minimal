@@ -4,7 +4,7 @@ use std::io::BufRead;
 
 const SIZE: (u32, u32) = (1024, 1024);
 
-const ITERATIONS: u32 = 1000;
+const ITERATIONS: u32 = 1;
 const ANIM_MODE: bool = false;
 
 fn main() {
@@ -48,6 +48,7 @@ fn main() {
 		edges,
 		Nodes::Degree(nodes),
 		Settings {
+			chunk_size: Some(256),
 			dimensions: 2,
 			dissuade_hubs: false,
 			ka: 0.01,

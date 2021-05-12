@@ -55,7 +55,7 @@ pub fn valloc<T>(n: usize) -> Vec<T> {
 	v
 }
 
-unsafe fn split_at_mut_unchecked<T>(s: &mut [T], mid: usize) -> (&mut [T], &mut [T]) {
+pub(crate) unsafe fn split_at_mut_unchecked<T>(s: &mut [T], mid: usize) -> (&mut [T], &mut [T]) {
 	let len = s.len();
 	let ptr = s.as_mut_ptr();
 
@@ -115,6 +115,7 @@ impl<'a, T> Iterator for PointIterMut<'a, T> {
 	}
 }
 
+#[derive(Clone)]
 pub struct PointList<T: Coord> {
 	/// Number of coordinates in a vector
 	pub dimensions: usize,
@@ -166,11 +167,25 @@ impl<'a, T: Coord> PointList<T> {
 			offset: 0,
 		}
 	}
+	pub fn iter_from(&self, offset: usize) -> PointIter<T> {
+		PointIter {
+			dimensions: self.dimensions,
+			list: &self.points,
+			offset: offset * self.dimensions,
+		}
+	}
 	pub fn iter_mut(&mut self) -> PointIterMut<T> {
 		PointIterMut {
 			dimensions: self.dimensions,
 			list: &mut self.points,
 			offset: 0,
+		}
+	}
+	pub fn iter_mut_from(&mut self, offset: usize) -> PointIterMut<T> {
+		PointIterMut {
+			dimensions: self.dimensions,
+			list: &mut self.points,
+			offset: offset * self.dimensions,
 		}
 	}
 }
@@ -220,6 +235,18 @@ where
 	}
 	v
 }
+
+pub(crate) struct SendPtr<T>(pub std::ptr::NonNull<T>);
+
+impl<T> Copy for SendPtr<T> {}
+impl<T> Clone for SendPtr<T> {
+	fn clone(&self) -> Self {
+		SendPtr(self.0)
+	}
+}
+
+unsafe impl<T> Send for SendPtr<T> {}
+unsafe impl<T> Sync for SendPtr<T> {}
 
 #[cfg(test)]
 mod tests {
