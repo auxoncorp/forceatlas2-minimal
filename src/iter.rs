@@ -193,7 +193,7 @@ impl<'a, T: Coord> Iterator for NodeParIter2<'a, T> {
 				let ret = NodePar2 {
 					#[cfg(test)]
 					ind: self.ind,
-					mass: unsafe { layout.masses.get_unchecked(self.offset) },
+					mass: unsafe { layout.masses.get_unchecked(self.ind) },
 					pos: unsafe { layout.points.points.get_unchecked(self.offset..next_offset) },
 					speed: unsafe {
 						self.layout

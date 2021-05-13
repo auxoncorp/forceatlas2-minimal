@@ -148,14 +148,23 @@ mod test {
 	#[test]
 	fn test_iter_par_nodes() {
 		for n_nodes in 1usize..16 {
-			let mut layout =
-				Layout::<f32>::from_graph(vec![], Nodes::Degree(n_nodes), Settings::default());
+			let mut layout = Layout::<f32>::from_graph(
+				vec![],
+				Nodes::Mass((1..n_nodes + 1).map(|i| i as f32).collect()),
+				Settings::default(),
+			);
+			layout
+				.speeds
+				.iter_mut()
+				.enumerate()
+				.for_each(|(i, speed)| speed.iter_mut().for_each(|speed| *speed = i as f32));
 			let hits = Arc::new(RwLock::new(
 				iproduct!(0..n_nodes, 0..n_nodes)
 					.filter(|(n1, n2)| n1 < n2)
 					.collect::<BTreeSet<(usize, usize)>>(),
 			));
 			let points = layout.points.clone();
+			let speeds = layout.speeds.clone();
 			for chunk_iter in layout.iter_par_nodes(4) {
 				chunk_iter.for_each(|n1_iter| {
 					for n1 in n1_iter {
@@ -164,6 +173,10 @@ mod test {
 							assert!(hits.remove(&(n1.ind, n2.ind)));
 							assert_eq!(n1.pos, points.get(n1.ind));
 							assert_eq!(n2.pos, points.get(n2.ind));
+							assert_eq!(n1.speed, speeds.get(n1.ind));
+							assert_eq!(n2.speed, speeds.get(n2.ind));
+							assert_eq!(*n1.mass, n1.ind as f32 + 1.);
+							assert_eq!(*n2.mass, n2.ind as f32 + 1.);
 						}
 					}
 				});
