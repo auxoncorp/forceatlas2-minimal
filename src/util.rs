@@ -40,13 +40,11 @@ pub enum Nodes<T> {
 	Degree(usize),
 }
 
-#[inline]
 pub fn norm<T: Coord>(n: &Position<T>) -> T {
 	n.iter().map(|i| i.clone().pow_n(2u32)).sum::<T>().sqrt()
 }
 
 /// Allocate Vec without initializing
-#[inline]
 pub fn valloc<T>(n: usize) -> Vec<T> {
 	let mut v = Vec::with_capacity(n);
 	unsafe {
@@ -90,7 +88,10 @@ impl<'a, T> Iterator for PointIter<'a, T> {
 		if self.offset >= self.list.len() {
 			return None;
 		}
-		let ret = &self.list[self.offset..self.offset + self.dimensions];
+		let ret = unsafe {
+			self.list
+				.get_unchecked(self.offset..self.offset + self.dimensions)
+		};
 		self.offset += self.dimensions;
 		Some(ret)
 	}
@@ -109,7 +110,10 @@ impl<'a, T> Iterator for PointIterMut<'a, T> {
 		if self.offset >= self.list.len() {
 			return None;
 		}
-		let ret: &'b mut [T] = &mut self.list[self.offset..self.offset + self.dimensions];
+		let ret: &'b mut [T] = unsafe {
+			self.list
+				.get_unchecked_mut(self.offset..self.offset + self.dimensions)
+		};
 		self.offset += self.dimensions;
 		Some(unsafe { std::mem::transmute(ret) })
 	}
@@ -124,26 +128,32 @@ pub struct PointList<T: Coord> {
 }
 
 impl<'a, T: Coord> PointList<T> {
-	#[inline]
 	pub fn get(&'a self, n: usize) -> &'a Position<T> {
 		let offset = n * self.dimensions;
 		&self.points[offset..offset + self.dimensions]
 	}
-	#[inline]
+
+	/// # Safety
+	/// `n` must be in bounds.
+	pub unsafe fn get_unchecked(&'a self, n: usize) -> &'a Position<T> {
+		let offset = n * self.dimensions;
+		&self.points.get_unchecked(offset..offset + self.dimensions)
+	}
+
 	pub fn get_clone(&self, n: usize) -> Vec<T> {
 		clone_slice_mut(self.get(n))
 	}
-	#[inline]
+
 	pub fn get_clone_slice(&self, n: usize, v: &mut [T]) {
 		v.clone_from_slice(self.get(n))
 	}
-	#[inline(always)]
+
 	pub fn get_mut(&mut self, n: usize) -> &mut Position<T> {
 		let offset = n * self.dimensions;
 		&mut self.points[offset..offset + self.dimensions]
 	}
+
 	/// n1 < n2
-	#[inline(always)]
 	pub fn get_2_mut(&mut self, n1: usize, n2: usize) -> (&mut Position<T>, &mut Position<T>) {
 		let offset1 = n1 * self.dimensions;
 		let offset2 = n2 * self.dimensions;
@@ -155,11 +165,12 @@ impl<'a, T: Coord> PointList<T> {
 			)
 		}
 	}
-	#[inline(always)]
+
 	pub fn set(&mut self, n: usize, val: &Position<T>) {
 		let offset = n * self.dimensions;
 		self.points[offset..offset + self.dimensions].clone_from_slice(val);
 	}
+
 	pub fn iter(&self) -> PointIter<T> {
 		PointIter {
 			dimensions: self.dimensions,
@@ -167,6 +178,7 @@ impl<'a, T: Coord> PointList<T> {
 			offset: 0,
 		}
 	}
+
 	pub fn iter_from(&self, offset: usize) -> PointIter<T> {
 		PointIter {
 			dimensions: self.dimensions,
@@ -174,6 +186,7 @@ impl<'a, T: Coord> PointList<T> {
 			offset: offset * self.dimensions,
 		}
 	}
+
 	pub fn iter_mut(&mut self) -> PointIterMut<T> {
 		PointIterMut {
 			dimensions: self.dimensions,
@@ -181,6 +194,7 @@ impl<'a, T: Coord> PointList<T> {
 			offset: 0,
 		}
 	}
+
 	pub fn iter_mut_from(&mut self, offset: usize) -> PointIterMut<T> {
 		PointIterMut {
 			dimensions: self.dimensions,

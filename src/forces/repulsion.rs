@@ -49,6 +49,7 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	}
 }
 
+#[cfg(feature = "parallel")]
 pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout: &mut Layout<T>) {
 	let kr = layout.settings.kr.clone();
 	let dimensions = layout.settings.dimensions;
@@ -126,6 +127,7 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 	}
 }
 
+#[cfg(feature = "parallel")]
 pub fn apply_repulsion_2d_parallel<T: Copy + Coord + std::fmt::Debug + Send + Sync>(
 	layout: &mut Layout<T>,
 ) {
@@ -173,7 +175,12 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 				.as_mut_ptr()
 				.add(n1 * layout.settings.dimensions)
 		};
-		let n1_pos = unsafe { _mm256_set_pd(n1_pos_s[1], n1_pos_s[0], n1_pos_s[1], n1_pos_s[0]) };
+		let n1_pos = unsafe { _mm256_set_pd(
+			*n1_pos_s.get_unchecked(1),
+			*n1_pos_s.get_unchecked(0),
+			*n1_pos_s.get_unchecked(1),
+			*n1_pos_s.get_unchecked(0))
+		};
 
 		/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
 			layout.points.get(n1)[0],
@@ -288,7 +295,7 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 
 		// Remaining iteration (if n1 is odd)
 		if n1 & 1usize == 1usize {
-			let n2_pos = layout.points.get(n2);
+			let n2_pos = unsafe { layout.points.get_unchecked(n2) };
 
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos_s.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos_s.get_unchecked(1) };
@@ -330,14 +337,14 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 		};
 		let n1_pos = unsafe {
 			_mm256_set_ps(
-				n1_pos_s[1],
-				n1_pos_s[0],
-				n1_pos_s[1],
-				n1_pos_s[0],
-				n1_pos_s[1],
-				n1_pos_s[0],
-				n1_pos_s[1],
-				n1_pos_s[0],
+				*n1_pos_s.get_unchecked(1),
+				*n1_pos_s.get_unchecked(0),
+				*n1_pos_s.get_unchecked(1),
+				*n1_pos_s.get_unchecked(0),
+				*n1_pos_s.get_unchecked(1),
+				*n1_pos_s.get_unchecked(0),
+				*n1_pos_s.get_unchecked(1),
+				*n1_pos_s.get_unchecked(0),
 			)
 		};
 
@@ -498,7 +505,7 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 
 		// Remaining iterations (if n1 is not multiple of 4)
 		while n2 < n1 {
-			let n2_pos = layout.points.get(n2);
+			let n2_pos = unsafe { layout.points.get_unchecked(n2) };
 
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos_s.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos_s.get_unchecked(1) };
