@@ -175,11 +175,13 @@ pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
 				.as_mut_ptr()
 				.add(n1 * layout.settings.dimensions)
 		};
-		let n1_pos = unsafe { _mm256_set_pd(
-			*n1_pos_s.get_unchecked(1),
-			*n1_pos_s.get_unchecked(0),
-			*n1_pos_s.get_unchecked(1),
-			*n1_pos_s.get_unchecked(0))
+		let n1_pos = unsafe {
+			_mm256_set_pd(
+				*n1_pos_s.get_unchecked(1),
+				*n1_pos_s.get_unchecked(0),
+				*n1_pos_s.get_unchecked(1),
+				*n1_pos_s.get_unchecked(0),
+			)
 		};
 
 		/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (

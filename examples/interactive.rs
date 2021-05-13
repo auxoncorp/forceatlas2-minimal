@@ -2,7 +2,11 @@ use forceatlas2::*;
 use itertools::izip;
 use plotters::prelude::*;
 use sdl2;
-use sdl2::{event::Event, keyboard::Keycode, pixels::PixelFormatEnum};
+use sdl2::{
+	event::{Event, WindowEvent},
+	keyboard::Keycode,
+	pixels::PixelFormatEnum,
+};
 use std::{
 	io::BufRead,
 	sync::{Arc, RwLock},
@@ -15,17 +19,20 @@ const SIZE: (u32, u32) = (800, 800);
 const FRAMEDUR: u64 = 30;
 type T = f32;
 
-pub fn run(image: Arc<RwLock<Vec<u8>>>) {
+pub fn run(image: Arc<RwLock<(u32, u32, Vec<u8>)>>, size: Arc<RwLock<(u32, u32)>>) {
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsystem = sdl_context.video().unwrap();
 
-	let window = video_subsystem
-		.window("ForceAtlas2", 800, 800)
-		.resizable()
-		.position_centered()
-		.opengl()
-		.build()
-		.unwrap();
+	let window = {
+		let size = size.read().unwrap();
+		video_subsystem
+			.window("ForceAtlas2", size.0, size.1)
+			.resizable()
+			.position_centered()
+			.opengl()
+			.build()
+			.unwrap()
+	};
 
 	let mut canvas = window.into_canvas().build().unwrap();
 	let texture_creator = canvas.texture_creator();
@@ -43,15 +50,23 @@ pub fn run(image: Arc<RwLock<Vec<u8>>>) {
 				} => {
 					break 'running;
 				}
+				Event::Window {
+					win_event: WindowEvent::SizeChanged(w, h),
+					..
+				} => {
+					let mut size = size.write().unwrap();
+					*size = (w as u32, h as u32);
+				}
 				_ => {}
 			}
 		}
 
+		let image = image.read().unwrap();
 		let mut texture = texture_creator
-			.create_texture_streaming(PixelFormatEnum::RGB24, SIZE.0, SIZE.1)
+			.create_texture_streaming(PixelFormatEnum::RGB24, image.0, image.1)
 			.unwrap();
 		texture
-			.update(None, &image.read().unwrap(), (SIZE.0 * 3u32) as usize)
+			.update(None, &image.2, (image.0 * 3u32) as usize)
 			.unwrap();
 		canvas.copy(&texture, None, None).unwrap();
 
@@ -116,24 +131,27 @@ fn main() {
 		Nodes::Degree(nodes),
 		settings.clone(),
 	)));
-	let image = Arc::new(RwLock::new(vec![
-		0u8;
-		SIZE.0 as usize * SIZE.1 as usize * 3
-	]));
+	let size = Arc::new(RwLock::new(SIZE));
+	let image = Arc::new(RwLock::new((
+		SIZE.0,
+		SIZE.1,
+		vec![0u8; SIZE.0 as usize * SIZE.1 as usize * 3],
+	)));
 	let computing = Arc::new(RwLock::new(false));
 	let sleep = Arc::new(RwLock::new(50u64));
-	draw_graph(layout.clone(), image.clone());
+	draw_graph(layout.clone(), image.clone(), size.clone());
 
 	thread::spawn({
 		let image = image.clone();
 		let computing = computing.clone();
 		let layout = layout.clone();
 		let sleep = sleep.clone();
+		let size = size.clone();
 
 		let interval = Duration::from_millis(FRAMEDUR);
 		move || loop {
 			if *computing.read().unwrap() {
-				draw_graph(layout.clone(), image.clone());
+				draw_graph(layout.clone(), image.clone(), size.clone());
 				thread::sleep(interval);
 			} else {
 				thread::sleep(std::time::Duration::from_millis(*sleep.read().unwrap()));
@@ -155,7 +173,7 @@ fn main() {
 		}
 	});
 
-	thread::spawn(move || run(image));
+	thread::spawn(move || run(image, size));
 
 	thread::spawn(move || loop {
 		let cmd = scanrs::scanln();
@@ -200,9 +218,22 @@ fn main() {
 	.unwrap();
 }
 
-fn draw_graph(layout: Arc<RwLock<Layout<T>>>, image: Arc<RwLock<Vec<u8>>>) {
+fn draw_graph(
+	layout: Arc<RwLock<Layout<T>>>,
+	image: Arc<RwLock<(u32, u32, Vec<u8>)>>,
+	size: Arc<RwLock<(u32, u32)>>,
+) {
 	let mut image = image.write().unwrap();
-	let root = BitMapBackend::with_buffer(&mut image, SIZE).into_drawing_area();
+	{
+		let size = size.read().unwrap();
+		if size.0 * size.1 != image.0 * image.1 {
+			image.2.resize((size.0 * size.1 * 3) as usize, 0);
+		}
+		image.0 = size.0;
+		image.1 = size.1;
+	}
+	let size = (image.0, image.1);
+	let root = BitMapBackend::with_buffer(&mut image.2, size).into_drawing_area();
 	root.fill(&WHITE).unwrap();
 
 	let layout = layout.read().unwrap();
@@ -227,12 +258,12 @@ fn draw_graph(layout: Arc<RwLock<Layout<T>>>, image: Arc<RwLock<Vec<u8>>>) {
 	}
 	let graph_size = (max[0] - min[0], max[1] - min[1]);
 	let factor = {
-		let factors = (SIZE.0 as T / graph_size.0, SIZE.1 as T / graph_size.1);
+		let factors = (size.0 as T / graph_size.0, size.1 as T / graph_size.1);
 		if factors.0 > factors.1 {
-			min[0] -= (SIZE.0 as T / factors.1 - graph_size.0) / 2.0;
+			min[0] -= (size.0 as T / factors.1 - graph_size.0) / 2.0;
 			factors.1
 		} else {
-			min[1] -= (SIZE.1 as T / factors.0 - graph_size.1) / 2.0;
+			min[1] -= (size.1 as T / factors.0 - graph_size.1) / 2.0;
 			factors.0
 		}
 	};
