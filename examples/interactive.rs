@@ -122,21 +122,32 @@ fn main() {
 	]));
 	let computing = Arc::new(RwLock::new(false));
 	let sleep = Arc::new(RwLock::new(50u64));
-	{
-		let layout = layout.write().unwrap();
-		draw_graph(&layout, image.clone());
-	}
+	draw_graph(layout.clone(), image.clone());
 
 	thread::spawn({
 		let image = image.clone();
 		let computing = computing.clone();
 		let layout = layout.clone();
+		let sleep = sleep.clone();
+
+		let interval = Duration::from_millis(FRAMEDUR);
+		move || loop {
+			if *computing.read().unwrap() {
+				draw_graph(layout.clone(), image.clone());
+				thread::sleep(interval);
+			} else {
+				thread::sleep(std::time::Duration::from_millis(*sleep.read().unwrap()));
+			}
+		}
+	});
+
+	thread::spawn({
+		let computing = computing.clone();
+		let layout = layout.clone();
 		let iters = iters.clone();
 		move || loop {
 			if *computing.read().unwrap() {
-				let mut layout = layout.write().unwrap();
-				draw_graph(&layout, image.clone());
-				layout.iteration();
+				layout.write().unwrap().iteration();
 				iters.write().unwrap().add_assign(1);
 			} else {
 				thread::sleep(std::time::Duration::from_millis(*sleep.read().unwrap()));
@@ -189,7 +200,13 @@ fn main() {
 	.unwrap();
 }
 
-fn draw_graph(layout: &Layout<T>, image: Arc<RwLock<Vec<u8>>>) {
+fn draw_graph(layout: Arc<RwLock<Layout<T>>>, image: Arc<RwLock<Vec<u8>>>) {
+	let mut image = image.write().unwrap();
+	let root = BitMapBackend::with_buffer(&mut image, SIZE).into_drawing_area();
+	root.fill(&WHITE).unwrap();
+
+	let layout = layout.read().unwrap();
+
 	let mut min_v = layout.points.get_clone(0);
 	let mut max_v = min_v.clone();
 	let min = min_v.as_mut_slice();
@@ -219,14 +236,10 @@ fn draw_graph(layout: &Layout<T>, image: Arc<RwLock<Vec<u8>>>) {
 			factors.0
 		}
 	};
-	println!("size:  {:?}", graph_size);
-	println!("scale: {}", factor);
-
-	let mut image = image.write().unwrap();
-	let root = BitMapBackend::with_buffer(&mut image, SIZE).into_drawing_area();
-	root.fill(&WHITE).unwrap();
 
 	if DRAW_LINKS {
+		let link_color = RGBColor(5, 5, 5).mix(0.05);
+
 		for (h1, h2) in layout.edges.iter() {
 			root.draw(&PathElement::new(
 				vec![
@@ -249,7 +262,7 @@ fn draw_graph(layout: &Layout<T>, image: Arc<RwLock<Vec<u8>>>) {
 						}
 					},
 				],
-				Into::<ShapeStyle>::into(&RGBColor(5, 5, 5).mix(0.05)).filled(),
+				Into::<ShapeStyle>::into(&link_color).filled(),
 			))
 			.unwrap();
 		}
@@ -297,4 +310,9 @@ fn draw_graph(layout: &Layout<T>, image: Arc<RwLock<Vec<u8>>>) {
 		))
 		.unwrap();
 	}
+
+	std::mem::drop(layout);
+
+	println!("size:  {:?}", graph_size);
+	println!("scale: {}", factor);
 }
