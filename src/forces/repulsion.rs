@@ -89,10 +89,23 @@ pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout
 }
 
 pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
-	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
-		let mut n2_iter = layout.points.iter();
+	let kr = layout.settings.kr;
+	for Node {
+		mass: n1_mass,
+		n2_iter,
+		pos: n1_pos,
+		speed: n1_speed,
+		..
+	} in layout.iter_nodes()
+	{
 		let n1_mass = *n1_mass + T::one();
-		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
+		for Node2 {
+			mass: n2_mass,
+			pos: n2_pos,
+			speed: n2_speed,
+			..
+		} in n2_iter
+		{
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) };
 
@@ -101,10 +114,8 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = n1_mass * (*unsafe { layout.masses.get_unchecked(n2) } + T::one()) / d2
-				* layout.settings.kr;
+			let f = n1_mass * (*n2_mass + T::one()) / d2 * kr;
 
-			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
 			let vx = f * dx;
 			let vy = f * dy;
 			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(vx); // n1_speed[0] -= f * dx
@@ -112,6 +123,37 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
 			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
 		}
+	}
+}
+
+pub fn apply_repulsion_2d_parallel<T: Copy + Coord + std::fmt::Debug + Send + Sync>(
+	layout: &mut Layout<T>,
+) {
+	let kr = layout.settings.kr;
+	for chunk_iter in layout.iter_par_nodes(layout.settings.chunk_size.unwrap()) {
+		chunk_iter.for_each(|n1_iter| {
+			for n1 in n1_iter {
+				let n1_mass = *n1.mass + T::one();
+				for n2 in n1.n2_iter {
+					let dx = unsafe { *n2.pos.get_unchecked(0) - *n1.pos.get_unchecked(0) };
+					let dy = unsafe { *n2.pos.get_unchecked(1) - *n1.pos.get_unchecked(1) };
+
+					let d2 = dx * dx + dy * dy;
+					if d2.is_zero() {
+						continue;
+					}
+
+					let f = n1_mass * (*n2.mass + T::one()) / d2 * kr;
+
+					let vx = f * dx;
+					let vy = f * dy;
+					unsafe { n1.speed.get_unchecked_mut(0) }.sub_assign(vx); // n1_speed[0] -= f * dx
+					unsafe { n1.speed.get_unchecked_mut(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
+					unsafe { n2.speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
+					unsafe { n2.speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
+				}
+			}
+		});
 	}
 }
 

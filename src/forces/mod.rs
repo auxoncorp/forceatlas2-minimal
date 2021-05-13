@@ -179,6 +179,10 @@ impl Repulsion<f64> for Layout<f64> {
 							return repulsion::apply_repulsion_2d_simd_f64;
 						}
 					}
+					#[cfg(feature = "parallel")]
+					if settings.chunk_size.is_some() {
+						return repulsion::apply_repulsion_2d_parallel;
+					}
 					repulsion::apply_repulsion_2d
 				}
 				3 => repulsion::apply_repulsion_3d,
@@ -206,6 +210,10 @@ impl Repulsion<f32> for Layout<f32> {
 						if is_x86_feature_detected!("avx2") {
 							return repulsion::apply_repulsion_2d_simd_f32;
 						}
+					}
+					#[cfg(feature = "parallel")]
+					if settings.chunk_size.is_some() {
+						return repulsion::apply_repulsion_2d_parallel;
 					}
 					repulsion::apply_repulsion_2d
 				}
