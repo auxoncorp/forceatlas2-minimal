@@ -17,6 +17,8 @@ TL;DR If you want best performance, use the following:
 
 Use the `barnes_hut` feature to turn repulsion from O(n^2) to O(n×log(n)) (only for 2D/3D and `f64`/`f32`). However, some optimizations like SIMD are not available with Barnes-Hut.
 
+Parallelization is implemented for generic/2D/3D cases without SIMD and without other layout settings. It will be implemented for other cases in the future. The bigger is your graph, the more interesting is the parallel mode. Tune it with `Settings::chunk_size`. You can control the number of threads with `rayon::ThreadPoolBuilder`.
+
 ## Examples
 
 [Install Rustup](https://rustup.rs/) and switch to nightly:

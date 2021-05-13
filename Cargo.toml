@@ -1,7 +1,7 @@
 [package]
 name = "forceatlas2"
-version = "0.2.1"
-description = "force-directed generic n-dimension graph layout"
+version = "0.3.0"
+description = "fast force-directed generic n-dimension graph layout"
 authors = ["tuxmain <tuxmain@zettascript.org>"]
 repository = "https://framagit.org/ZettaScript/forceatlas2-rs"
 keywords = ["force", "graph", "algorithm"]
