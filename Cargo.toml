@@ -1,6 +1,6 @@
 [package]
 name = "forceatlas2"
-version = "0.3.0"
+version = "0.3.1"
 description = "fast force-directed generic n-dimension graph layout"
 authors = ["tuxmain <tuxmain@zettascript.org>"]
 repository = "https://framagit.org/ZettaScript/forceatlas2-rs"

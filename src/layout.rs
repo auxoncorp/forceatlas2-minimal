@@ -219,7 +219,7 @@ mod test {
 	}
 
 	#[test]
-	#[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
+	#[cfg(feature = "parallel")]
 	fn test_iter_par_simd_nodes() {
 		for n_nodes in 1usize..32 {
 			let mut layout = Layout::<f32>::from_graph(
@@ -275,6 +275,15 @@ mod test {
 							assert_eq!(unsafe { *n2.mass.add(1) }, n2.ind as f32 + 1.);
 							assert_eq!(unsafe { *n2.mass }, n2.ind as f32 + 1.);
 							assert_eq!(unsafe { *n2.mass }, n2.ind as f32 + 1.);
+						}
+
+						for n2 in n1.n2_iter.ind
+							..(n1.n2_iter.ind + (n1.n2_iter.ind - n1.ind + 1) / 4 * 4 + 4)
+								.min(n_nodes)
+						{
+							let mut hits = hits.write().unwrap();
+							println!("rem {} {}", n1.ind, n2);
+							assert!(hits.remove(&(n1.ind, n2)));
 						}
 					}
 				});
