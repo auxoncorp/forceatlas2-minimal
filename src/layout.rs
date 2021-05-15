@@ -85,6 +85,7 @@ impl<T: Coord> Layout<T> {
 	}
 }
 
+#[cfg(feature = "parallel")]
 impl<T: Coord + Send> Layout<T> {
 	pub fn iter_par_nodes(
 		&mut self,
@@ -116,14 +117,45 @@ impl<T: Coord + Send> Layout<T> {
 	}
 }
 
+#[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
+impl<T: Coord + Send> Layout<T> {
+	pub fn iter_par_simd_nodes<const N: usize>(
+		&mut self,
+		chunk_size: usize,
+	) -> impl Iterator<Item = impl ParallelIterator<Item = NodeParSimdIter<T, N>>> {
+		let ptr = SendPtr(self.into());
+		let dimensions = self.settings.dimensions;
+		let chunk_size_d = chunk_size * dimensions;
+		let n = self.masses.len() * dimensions;
+		(0..self.masses.len()).step_by(chunk_size).map(move |y0| {
+			let y0_d = y0 * dimensions;
+			(0..self.masses.len() - y0)
+				.into_par_iter()
+				.step_by(chunk_size)
+				.map(move |x0| {
+					let x0_d = x0 * dimensions;
+					NodeParSimdIter {
+						end: (x0_d + chunk_size_d).min(n),
+						ind: x0,
+						layout: ptr,
+						n2_start: x0_d + y0_d,
+						n2_start_ind: x0 + y0,
+						n2_end: (x0_d + y0_d + chunk_size_d).min(n),
+						offset: x0_d,
+						_phantom: PhantomData::default(),
+					}
+				})
+		})
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
 	use itertools::iproduct;
-	use std::{
-		collections::BTreeSet,
-		sync::{Arc, RwLock},
-	};
+	use std::collections::BTreeSet;
+	#[cfg(feature = "parallel")]
+	use std::sync::{Arc, RwLock};
 
 	#[test]
 	fn test_iter_nodes() {
@@ -146,6 +178,7 @@ mod test {
 	}
 
 	#[test]
+	#[cfg(feature = "parallel")]
 	fn test_iter_par_nodes() {
 		for n_nodes in 1usize..16 {
 			let mut layout = Layout::<f32>::from_graph(
@@ -181,6 +214,73 @@ mod test {
 					}
 				});
 			}
+			assert!(hits.read().unwrap().is_empty());
+		}
+	}
+
+	#[test]
+	#[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
+	fn test_iter_par_simd_nodes() {
+		for n_nodes in 1usize..32 {
+			let mut layout = Layout::<f32>::from_graph(
+				vec![],
+				Nodes::Mass((1..n_nodes + 1).map(|i| i as f32).collect()),
+				Settings::default(),
+			);
+			layout
+				.speeds
+				.iter_mut()
+				.enumerate()
+				.for_each(|(i, speed)| speed.iter_mut().for_each(|speed| *speed = i as f32));
+			let hits = Arc::new(RwLock::new(
+				iproduct!(0..n_nodes, 0..n_nodes)
+					.filter(|(n1, n2)| n1 < n2)
+					.collect::<BTreeSet<(usize, usize)>>(),
+			));
+			let points = layout.points.clone();
+			let speeds = layout.speeds.clone();
+			for chunk_iter in layout.iter_par_simd_nodes::<4>(16) {
+				chunk_iter.for_each(|n1_iter| {
+					for mut n1 in n1_iter {
+						for n2 in &mut n1.n2_iter {
+							let mut hits = hits.write().unwrap();
+							assert!(hits.remove(&(n1.ind, n2.ind)));
+							assert!(hits.remove(&(n1.ind, n2.ind + 1)));
+							assert!(hits.remove(&(n1.ind, n2.ind + 2)));
+							assert!(hits.remove(&(n1.ind, n2.ind + 3)));
+							assert_eq!(n1.pos, points.get(n1.ind));
+							assert_eq!(n2.pos as *const f32, points.get(n2.ind).as_ptr());
+							assert_eq!(n2.pos as *const f32, unsafe {
+								points.get(n2.ind).as_ptr().add(1)
+							});
+							assert_eq!(n2.pos as *const f32, unsafe {
+								points.get(n2.ind).as_ptr().add(2)
+							});
+							assert_eq!(n2.pos as *const f32, unsafe {
+								points.get(n2.ind).as_ptr().add(3)
+							});
+							assert_eq!(n1.speed as *const f32, speeds.get(n1.ind).as_ptr());
+							assert_eq!(n2.speed as *const f32, speeds.get(n2.ind).as_ptr());
+							assert_eq!(n2.speed as *const f32, unsafe {
+								speeds.get(n2.ind).as_ptr().add(1)
+							});
+							assert_eq!(n2.speed as *const f32, unsafe {
+								speeds.get(n2.ind).as_ptr().add(2)
+							});
+							assert_eq!(n2.speed as *const f32, unsafe {
+								speeds.get(n2.ind).as_ptr().add(3)
+							});
+							assert_eq!(*n1.mass, n1.ind as f32 + 1.);
+							assert_eq!(unsafe { *n2.mass }, n2.ind as f32 + 1.);
+							assert_eq!(unsafe { *n2.mass.add(1) }, n2.ind as f32 + 1.);
+							assert_eq!(unsafe { *n2.mass }, n2.ind as f32 + 1.);
+							assert_eq!(unsafe { *n2.mass }, n2.ind as f32 + 1.);
+						}
+					}
+				});
+			}
+			println!("{}", n_nodes);
+			println!("{:?}", hits);
 			assert!(hits.read().unwrap().is_empty());
 		}
 	}
