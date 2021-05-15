@@ -181,17 +181,24 @@ fn main() {
 		match args.next() {
 			Some("q") => break,
 			Some("h") => {
-				println!("h         help");
-				println!("q         quit");
-				println!("r         reset");
-				println!("s         start/stop");
-				println!("ka <f64>  attraction");
-				println!("kg <f64>  gravity");
-				println!("kr <f64>  repulsion");
+				println!("h          help");
+				println!("i          display number of iterations");
+				println!("p          display parameters");
+				println!("q          quit");
+				println!("r          reset");
+				println!("s          start/stop");
+				println!("cs [usize] chunk size (leave empty to disable parallel)");
+				println!("ka <f64>   attraction");
+				println!("kg <f64>   gravity");
+				println!("kr <f64>   repulsion");
 			}
 			Some("s") => {
 				let mut computing = computing.write().unwrap();
 				*computing = !*computing;
+			}
+			Some("cs") => {
+				settings.chunk_size = args.next().map(|chunk_size| chunk_size.parse().unwrap());
+				layout.write().unwrap().set_settings(settings.clone());
 			}
 			Some("ka") => {
 				settings.ka = args.next().unwrap().parse().unwrap();
@@ -207,9 +214,14 @@ fn main() {
 			}
 			Some("r") => {
 				let mut layout = layout.write().unwrap();
+				let mut iters = iters.write().unwrap();
+				*iters = 0;
 				*layout = Layout::from_graph(edges.clone(), Nodes::Degree(nodes), settings.clone());
 			}
-			Some("p") => println!("ka={}  kg={}  kr={}", settings.ka, settings.kg, settings.kr,),
+			Some("p") => println!(
+				"ka={}  kg={}  kr={}  cs={:?}",
+				settings.ka, settings.kg, settings.kr, settings.chunk_size
+			),
 			Some("i") => println!("{}", iters.read().unwrap()),
 			_ => println!("Unknown command"),
 		}
