@@ -1,10 +1,3 @@
-#![feature(specialization)]
-#![feature(stdsimd)]
-#![feature(trait_alias)]
-#![allow(incomplete_features)]
-#![feature(option_result_unwrap_unchecked)]
-#![feature(core_intrinsics)]
-
 mod forces;
 mod iter;
 mod layout;
@@ -17,19 +10,19 @@ pub use util::{Coord, Edge, Nodes, PointIter, PointIterMut, PointList, Position}
 
 use itertools::izip;
 use num_traits::cast::NumCast;
+use num_traits::{Zero, One};
 
-impl<'a, T: Coord + std::fmt::Debug> Layout<T>
+impl<'a> Layout
 where
-	Layout<T>: forces::Repulsion<T> + forces::Attraction<T>,
+	Layout: forces::Repulsion + forces::Attraction,
 {
 	/// Instanciates a randomly positioned layout from an undirected graph
 	///
 	/// Assumes edges `(n1, n2)` respect `n1 < n2`.
 	#[cfg(feature = "rand")]
-	pub fn from_graph(edges: Vec<Edge>, nodes: Nodes<T>, settings: Settings<T>) -> Self
+	pub fn from_graph(edges: Vec<Edge>, nodes: Nodes, settings: Settings) -> Self
 	where
-		rand::distributions::Standard: rand::distributions::Distribution<T>,
-		T: rand::distributions::uniform::SampleUniform,
+		rand::distributions::Standard: rand::distributions::Distribution<Coord>,
 	{
 		let nodes = match nodes {
 			Nodes::Degree(nb_nodes) => {
@@ -40,7 +33,7 @@ where
 				}
 				degrees
 					.into_iter()
-					.map(|degree| <T as NumCast>::from(degree).unwrap())
+					.map(|degree| <Coord as NumCast>::from(degree).unwrap())
 					.collect()
 			}
 			Nodes::Mass(masses) => masses,
@@ -61,11 +54,11 @@ where
 			masses: nodes,
 			speeds: PointList {
 				dimensions: settings.dimensions,
-				points: (0..nb).map(|_| T::zero()).collect(),
+				points: (0..nb).map(|_| Coord::zero()).collect(),
 			},
 			old_speeds: PointList {
 				dimensions: settings.dimensions,
-				points: (0..nb).map(|_| T::zero()).collect(),
+				points: (0..nb).map(|_| Coord::zero()).collect(),
 			},
 			fn_attraction: Self::choose_attraction(&settings),
 			fn_gravity: forces::choose_gravity(&settings),
@@ -78,15 +71,13 @@ where
 	///
 	/// Assumes edges `(n1, n2)` respect `n1 < n2`
 	///
-	/// `nodes` is a list of coordinates, e.g. `[x1, y1, x2, y2, ...]`.
+	/// `positions` is a list of coordinates, e.g. `[x1, y1, x2, y2, ...]`.
 	pub fn from_position_graph(
 		edges: Vec<Edge>,
-		nodes: Nodes<T>,
-		positions: Vec<T>,
-		settings: Settings<T>,
+		nodes: Nodes,
+		positions: Vec<Coord>,
+		settings: Settings,
 	) -> Self
-	where
-		T: 'a,
 	{
 		let nodes = match nodes {
 			Nodes::Degree(nb_nodes) => {
@@ -97,7 +88,7 @@ where
 				}
 				degrees
 					.into_iter()
-					.map(|degree| <T as NumCast>::from(degree).unwrap())
+					.map(|degree| <Coord as NumCast>::from(degree).unwrap())
 					.collect()
 			}
 			Nodes::Mass(masses) => masses,
@@ -114,11 +105,11 @@ where
 			},
 			speeds: PointList {
 				dimensions: settings.dimensions,
-				points: (0..nb).map(|_| T::zero()).collect(),
+				points: (0..nb).map(|_| Coord::zero()).collect(),
 			},
 			old_speeds: PointList {
 				dimensions: settings.dimensions,
-				points: (0..nb).map(|_| T::zero()).collect(),
+				points: (0..nb).map(|_| Coord::zero()).collect(),
 			},
 			fn_attraction: Self::choose_attraction(&settings),
 			fn_gravity: forces::choose_gravity(&settings),
@@ -128,11 +119,11 @@ where
 	}
 
 	#[inline]
-	pub fn get_settings(&self) -> &Settings<T> {
+	pub fn get_settings(&self) -> &Settings {
 		&self.settings
 	}
 
-	pub fn set_settings(&mut self, settings: Settings<T>) {
+	pub fn set_settings(&mut self, settings: Settings) {
 		self.fn_attraction = Self::choose_attraction(&settings);
 		self.fn_gravity = forces::choose_gravity(&settings);
 		self.fn_repulsion = Self::choose_repulsion(&settings);
@@ -157,7 +148,7 @@ where
 			.zip(self.old_speeds.points.iter_mut())
 		{
 			*old_speed = speed.clone();
-			*speed = T::zero();
+			*speed = Coord::zero();
 		}
 	}
 
@@ -185,14 +176,14 @@ where
 			let swinging = speed
 				.iter()
 				.zip(old_speed.iter())
-				.map(|(s, old_s)| (s.clone() - old_s.clone()).pow_n(2u32))
-				.sum::<T>();
+				.map(|(s, old_s)| (s.clone() - old_s.clone()).powi(2))
+				.sum::<Coord>();
 			let traction = speed
 				.iter()
 				.zip(old_speed.iter())
-				.map(|(s, old_s)| (s.clone() + old_s.clone()).pow_n(2u32))
-				.sum::<T>();
-			let f = (traction).ln_1p() / (swinging.sqrt() + T::one());
+				.map(|(s, old_s)| (s.clone() + old_s.clone()).powi(2))
+				.sum::<Coord>();
+			let f = (traction).ln_1p() / (swinging.sqrt() + Coord::one());
 
 			pos.iter_mut()
 				.zip(speed.iter_mut())
@@ -216,7 +207,7 @@ mod tests {
 	#[cfg(feature = "rand")]
 	#[test]
 	fn test_global() {
-		let mut layout = Layout::<f64>::from_graph(
+		let mut layout = Layout::from_graph(
 			vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4)],
 			Nodes::Degree(5),
 			Settings::default(),
@@ -231,7 +222,7 @@ mod tests {
 
 	#[test]
 	fn test_init_iteration() {
-		let mut layout = Layout::<f64>::from_position_graph(
+		let mut layout = Layout::from_position_graph(
 			vec![(0, 1)],
 			Nodes::Degree(2),
 			vec![-1.0, -1.0, 1.0, 1.0],
@@ -242,14 +233,14 @@ mod tests {
 			.points
 			.iter_mut()
 			.enumerate()
-			.for_each(|(i, s)| *s += i as f64);
+			.for_each(|(i, s)| *s += i as f32);
 		layout.init_iteration();
 		assert_eq!(layout.speeds.points, vec![0.0, 0.0, 0.0, 0.0]);
 	}
 
 	#[test]
 	fn test_forces() {
-		let mut layout = Layout::<f64>::from_position_graph(
+		let mut layout = Layout::from_position_graph(
 			vec![(0, 1)],
 			Nodes::Degree(2),
 			vec![-2.0, -2.0, 1.0, 2.0],
@@ -296,10 +287,10 @@ mod tests {
 		assert!(speed_1[1] > 0.0);
 		assert!(speed_2[0] < 0.0);
 		assert!(speed_2[1] < 0.0);
-		assert_eq!(speed_1[0], 2.0 / 2.0.sqrt());
-		assert_eq!(speed_1[1], 2.0 / 2.0.sqrt());
-		assert_eq!(speed_2[0], -2.0 / 5.0.sqrt());
-		assert_eq!(speed_2[1], -4.0 / 5.0.sqrt());
+		assert_eq!(speed_1[0], 2.0 / 2.0f32.sqrt());
+		assert_eq!(speed_1[1], 2.0 / 2.0f32.sqrt());
+		assert_eq!(speed_2[0], -2.0 / 5.0f32.sqrt());
+		assert_eq!(speed_2[1], -4.0 / 5.0f32.sqrt());
 	}
 
 	#[cfg(feature = "barnes_hut")]
@@ -326,7 +317,7 @@ mod tests {
 
 	#[test]
 	fn test_convergence() {
-		let mut layout = Layout::<f64>::from_position_graph(
+		let mut layout = Layout::from_position_graph(
 			vec![(0, 1), (1, 2)],
 			Nodes::Degree(3),
 			vec![-1.1, -1.0, 0.0, 0.0, 1.0, 1.0],
@@ -369,7 +360,7 @@ mod tests {
 
 	#[test]
 	fn check_alloc() {
-		let mut layout = Layout::<f64>::from_graph(
+		let mut layout = Layout::from_graph(
 			vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 4), (3, 4)],
 			Nodes::Degree(5),
 			Settings::default(),

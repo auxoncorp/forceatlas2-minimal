@@ -13,6 +13,7 @@ use std::{
 	thread,
 	time::Duration,
 };
+use std::ops::AddAssign;
 
 const DRAW_LINKS: bool = true;
 const SIZE: (u32, u32) = (800, 800);
@@ -126,7 +127,7 @@ fn main() {
 		strong_gravity: false,
 	};
 
-	let layout = Arc::new(RwLock::new(Layout::<T>::from_graph(
+	let layout = Arc::new(RwLock::new(Layout::from_graph(
 		edges.clone(),
 		Nodes::Degree(nodes),
 		settings.clone(),
@@ -231,7 +232,7 @@ fn main() {
 }
 
 fn draw_graph(
-	layout: Arc<RwLock<Layout<T>>>,
+	layout: Arc<RwLock<Layout>>,
 	image: Arc<RwLock<(u32, u32, Vec<u8>)>>,
 	size: Arc<RwLock<(u32, u32)>>,
 ) {

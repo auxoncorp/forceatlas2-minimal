@@ -7,42 +7,54 @@ pub use parallel::*;
 #[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
 pub use parallel_simd::*;
 
-pub struct Node<'a, T: Coord> {
+pub struct Node<'a> {
 	#[cfg(test)]
 	pub ind: usize,
-	pub mass: &'a T,
-	pub n2_iter: NodeIter2<'a, T>,
-	pub pos: &'a [T],
-	pub speed: &'a mut [T],
+	pub mass: &'a Coord,
+	pub n2_iter: NodeIter2<'a>,
+	pub pos: &'a [Coord],
+	pub speed: &'a mut [Coord],
 }
 
-pub struct NodeIter<'a, T: Coord> {
+pub struct NodeIter<'a> {
 	pub ind: usize,
-	pub(crate) layout: SendPtr<Layout<T>>,
+	pub(crate) layout: SendPtr<Layout>,
 	pub offset: usize,
-	pub(crate) _phantom: PhantomData<&'a mut Layout<T>>,
+	pub(crate) _phantom: PhantomData<&'a mut Layout>,
 }
 
-pub struct Node2<'a, T: Coord> {
+impl <'a> NodeIter<'a> {
+	unsafe fn unchecked_layout(&mut self) -> &'a mut Layout {
+		core::mem::transmute(self.layout.0.as_mut())
+	}
+}
+
+pub struct Node2<'a> {
 	#[cfg(test)]
 	pub ind: usize,
-	pub mass: &'a T,
-	pub pos: &'a [T],
-	pub speed: &'a mut [T],
+	pub mass: &'a Coord,
+	pub pos: &'a [Coord],
+	pub speed: &'a mut [Coord],
 }
 
-pub struct NodeIter2<'a, T: Coord> {
+pub struct NodeIter2<'a> {
 	pub ind: usize,
-	pub(crate) layout: SendPtr<Layout<T>>,
+	pub(crate) layout: SendPtr<Layout>,
 	pub offset: usize,
-	pub(crate) _phantom: PhantomData<&'a mut Layout<T>>,
+	pub(crate) _phantom: PhantomData<&'a mut Layout>,
 }
 
-impl<'a, T: Coord> Iterator for NodeIter<'a, T> {
-	type Item = Node<'a, T>;
+impl <'a> NodeIter2<'a> {
+	unsafe fn unchecked_layout(&mut self) -> &'a mut Layout {
+		core::mem::transmute(self.layout.0.as_mut())
+	}
+}
+
+impl<'a> Iterator for NodeIter<'a> {
+	type Item = Node<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		let layout = unsafe { self.layout.0.as_mut() };
+		let layout: &'a Layout = unsafe { self.unchecked_layout() };
 		if let Some(mass) = layout.masses.get(self.ind) {
 			Some({
 				let next_offset = self.offset + layout.settings.dimensions;
@@ -55,13 +67,11 @@ impl<'a, T: Coord> Iterator for NodeIter<'a, T> {
 						ind: next_ind,
 						layout: self.layout,
 						offset: next_offset,
-						_phantom: PhantomData::default(),
+						_phantom: PhantomData,
 					},
 					pos: unsafe { layout.points.points.get_unchecked(self.offset..next_offset) },
 					speed: unsafe {
-						self.layout
-							.0
-							.as_mut()
+						self.unchecked_layout()
 							.speeds
 							.points
 							.get_unchecked_mut(self.offset..next_offset)
@@ -77,11 +87,11 @@ impl<'a, T: Coord> Iterator for NodeIter<'a, T> {
 	}
 }
 
-impl<'a, T: Coord> Iterator for NodeIter2<'a, T> {
-	type Item = Node2<'a, T>;
+impl<'a> Iterator for NodeIter2<'a> {
+	type Item = Node2<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		let layout = unsafe { self.layout.0.as_mut() };
+		let layout = unsafe { self.unchecked_layout() };
 		if let Some(mass) = layout.masses.get(self.ind) {
 			Some({
 				let next_offset = self.offset + layout.settings.dimensions;
@@ -91,9 +101,7 @@ impl<'a, T: Coord> Iterator for NodeIter2<'a, T> {
 					mass,
 					pos: unsafe { layout.points.points.get_unchecked(self.offset..next_offset) },
 					speed: unsafe {
-						self.layout
-							.0
-							.as_mut()
+						self.unchecked_layout()
 							.speeds
 							.points
 							.get_unchecked_mut(self.offset..next_offset)
@@ -113,49 +121,59 @@ impl<'a, T: Coord> Iterator for NodeIter2<'a, T> {
 mod parallel {
 	use super::*;
 
-	pub struct NodePar<'a, T: Coord> {
+	pub struct NodePar<'a> {
 		#[cfg(test)]
 		pub ind: usize,
-		pub mass: &'a T,
-		pub n2_iter: NodeParIter2<'a, T>,
-		pub pos: &'a [T],
-		pub speed: &'a mut [T],
+		pub mass: &'a Coord,
+		pub n2_iter: NodeParIter2<'a>,
+		pub pos: &'a [Coord],
+		pub speed: &'a mut [Coord],
 	}
 
-	pub struct NodeParIter<'a, T: Coord> {
+	pub struct NodeParIter<'a> {
 		pub end: usize,
 		pub ind: usize,
-		pub(crate) layout: SendPtr<Layout<T>>,
+		pub(crate) layout: SendPtr<Layout>,
 		pub n2_start: usize,
 		pub n2_start_ind: usize,
 		pub n2_end: usize,
 		pub offset: usize,
-		pub(crate) _phantom: PhantomData<&'a mut Layout<T>>,
+		pub(crate) _phantom: PhantomData<&'a mut Layout>,
+	}
+	impl <'a> NodeParIter<'a> {
+		unsafe fn unchecked_layout(&mut self) -> &'a mut Layout {
+			core::mem::transmute(self.layout.0.as_mut())
+		}
 	}
 
-	pub struct NodePar2<'a, T: Coord> {
+	pub struct NodePar2<'a> {
 		#[cfg(test)]
 		pub ind: usize,
-		pub mass: &'a T,
-		pub pos: &'a [T],
-		pub speed: &'a mut [T],
+		pub mass: &'a Coord,
+		pub pos: &'a [Coord],
+		pub speed: &'a mut [Coord],
 	}
 
-	pub struct NodeParIter2<'a, T: Coord> {
+	pub struct NodeParIter2<'a> {
 		pub end: usize,
 		pub ind: usize,
-		pub(crate) layout: SendPtr<Layout<T>>,
+		pub(crate) layout: SendPtr<Layout>,
 		pub offset: usize,
-		pub(crate) _phantom: PhantomData<&'a mut Layout<T>>,
+		pub(crate) _phantom: PhantomData<&'a mut Layout>,
+	}
+	impl <'a> NodeParIter2<'a> {
+		unsafe fn unchecked_layout(&mut self) -> &'a mut Layout {
+			core::mem::transmute(self.layout.0.as_mut())
+		}
 	}
 
-	impl<'a, T: Coord> Iterator for NodeParIter<'a, T> {
-		type Item = NodePar<'a, T>;
+	impl<'a> Iterator for NodeParIter<'a> {
+		type Item = NodePar<'a>;
 
 		fn next(&mut self) -> Option<Self::Item> {
 			if self.offset < self.end {
 				Some({
-					let layout = unsafe { self.layout.0.as_mut() };
+					let layout = unsafe { self.unchecked_layout() };
 					let next_offset = self.offset + layout.settings.dimensions;
 					let next_ind = self.ind + 1;
 					let ret = NodePar {
@@ -173,9 +191,7 @@ mod parallel {
 							layout.points.points.get_unchecked(self.offset..next_offset)
 						},
 						speed: unsafe {
-							self.layout
-								.0
-								.as_mut()
+							self.unchecked_layout()
 								.speeds
 								.points
 								.get_unchecked_mut(self.offset..next_offset)
@@ -191,13 +207,13 @@ mod parallel {
 		}
 	}
 
-	impl<'a, T: Coord> Iterator for NodeParIter2<'a, T> {
-		type Item = NodePar2<'a, T>;
+	impl<'a> Iterator for NodeParIter2<'a> {
+		type Item = NodePar2<'a>;
 
 		fn next(&mut self) -> Option<Self::Item> {
 			if self.offset < self.end {
 				Some({
-					let layout = unsafe { self.layout.0.as_mut() };
+					let layout = unsafe { self.unchecked_layout() };
 					let next_offset = self.offset + layout.settings.dimensions;
 					let ret = NodePar2 {
 						#[cfg(test)]
@@ -207,9 +223,7 @@ mod parallel {
 							layout.points.points.get_unchecked(self.offset..next_offset)
 						},
 						speed: unsafe {
-							self.layout
-								.0
-								.as_mut()
+							self.unchecked_layout()
 								.speeds
 								.points
 								.get_unchecked_mut(self.offset..next_offset)
@@ -230,48 +244,53 @@ mod parallel {
 mod parallel_simd {
 	use super::*;
 
-	pub struct NodeParSimd<'a, T: Coord, const N: usize> {
+	pub struct NodeParSimd<'a, const N: usize> {
 		pub ind: usize,
-		pub mass: &'a T,
-		pub n2_iter: NodeParSimdIter2<'a, T, N>,
-		pub pos: &'a [T],
-		pub speed: *mut T,
+		pub mass: &'a Coord,
+		pub n2_iter: NodeParSimdIter2<'a, N>,
+		pub pos: &'a [Coord],
+		pub speed: *mut Coord,
 	}
 
-	pub struct NodeParSimdIter<'a, T: Coord, const N: usize> {
+	pub struct NodeParSimdIter<'a, const N: usize> {
 		pub end: usize,
 		pub ind: usize,
-		pub(crate) layout: SendPtr<Layout<T>>,
+		pub(crate) layout: SendPtr<Layout>,
 		pub n2_start: usize,
 		pub n2_start_ind: usize,
 		pub n2_end: usize,
 		pub offset: usize,
-		pub(crate) _phantom: PhantomData<&'a mut Layout<T>>,
+		pub(crate) _phantom: PhantomData<&'a mut Layout>,
+	}
+	impl <'a, const N: usize> NodeParSimdIter<'a, N> {
+		unsafe fn unchecked_layout(&mut self) -> &'a Layout {
+			core::mem::transmute(self.layout.0.as_mut())
+		}
 	}
 
-	pub struct NodeParSimd2<T: Coord, const N: usize> {
+	pub struct NodeParSimd2<const N: usize> {
 		#[cfg(test)]
 		pub ind: usize,
-		pub mass: *mut T,
-		pub pos: *mut T,
-		pub speed: *mut T,
+		pub mass: *mut Coord,
+		pub pos: *mut Coord,
+		pub speed: *mut Coord,
 	}
 
-	pub struct NodeParSimdIter2<'a, T: Coord, const N: usize> {
+	pub struct NodeParSimdIter2<'a, const N: usize> {
 		pub end: usize,
 		pub ind: usize,
-		pub(crate) layout: SendPtr<Layout<T>>,
+		pub(crate) layout: SendPtr<Layout>,
 		pub offset: usize,
-		pub(crate) _phantom: PhantomData<&'a mut Layout<T>>,
+		pub(crate) _phantom: PhantomData<&'a mut Layout>,
 	}
 
-	impl<'a, T: Coord, const N: usize> Iterator for NodeParSimdIter<'a, T, N> {
-		type Item = NodeParSimd<'a, T, N>;
+	impl<'a, const N: usize> Iterator for NodeParSimdIter<'a, N> {
+		type Item = NodeParSimd<'a, N>;
 
 		fn next(&mut self) -> Option<Self::Item> {
 			if self.offset < self.end {
 				Some({
-					let layout = unsafe { self.layout.0.as_mut() };
+					let layout = unsafe { self.unchecked_layout() };
 					let next_offset = self.offset + layout.settings.dimensions;
 					let next_ind = self.ind + 1;
 					let n2_start_ind = self.n2_start_ind.max(next_ind);
@@ -308,8 +327,8 @@ mod parallel_simd {
 		}
 	}
 
-	impl<'a, T: Coord, const N: usize> Iterator for &mut NodeParSimdIter2<'a, T, N> {
-		type Item = NodeParSimd2<T, N>;
+	impl<'a, const N: usize> Iterator for &mut NodeParSimdIter2<'a, N> {
+		type Item = NodeParSimd2<N>;
 
 		fn next(&mut self) -> Option<Self::Item> {
 			if self.offset < self.end {

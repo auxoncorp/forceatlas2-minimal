@@ -44,7 +44,7 @@ fn main() {
 
 	println!("Nodes: {}", nodes);
 
-	let mut layout = Layout::<f32>::from_graph(
+	let mut layout = Layout::from_graph(
 		edges,
 		Nodes::Degree(nodes),
 		Settings {
@@ -71,7 +71,7 @@ fn main() {
 	draw_graph(&layout, ITERATIONS);
 }
 
-fn draw_graph(layout: &Layout<f32>, iteration: u32) {
+fn draw_graph(layout: &Layout, iteration: u32) {
 	let mut min_v = layout.points.get_clone(0);
 	let mut max_v = min_v.clone();
 	let min = min_v.as_mut_slice();
