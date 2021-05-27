@@ -1,8 +1,8 @@
 [package]
-name = "forceatlas2"
+name = "forceatlas2-minimal"
 version = "0.3.1"
 description = "fast force-directed generic n-dimension graph layout"
-authors = ["tuxmain <tuxmain@zettascript.org>"]
+authors = ["tuxmain <tuxmain@zettascript.org>", "Zack Pierce <zacharypierce@gmail.com>"]
 repository = "https://framagit.org/ZettaScript/forceatlas2-rs"
 keywords = ["force", "graph", "algorithm"]
 license = "AGPL-3.0-only"
