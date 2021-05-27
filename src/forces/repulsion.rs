@@ -3,8 +3,10 @@ use crate::{iter::*, layout::*, util::*};
 use itertools::izip;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use num_traits::{One, Zero};
+use std::ops::{SubAssign, AddAssign};
 
-pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_repulsion(layout: &mut Layout) {
 	let kr = layout.settings.kr.clone();
 	let mut di = valloc(layout.settings.dimensions);
 	for Node {
@@ -15,7 +17,7 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 		..
 	} in layout.iter_nodes()
 	{
-		let n1_mass = n1_mass.clone() + T::one();
+		let n1_mass = n1_mass.clone() + Coord::one();
 		for Node2 {
 			mass: n2_mass,
 			pos: n2_pos,
@@ -30,14 +32,14 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 				.zip(n1_pos.iter())
 				.map(|(di, n1_pos)| {
 					*di -= n1_pos.clone();
-					di.clone().pow_n(2u32)
+					(*di).powi(2)
 				})
-				.sum::<T>();
+				.sum::<Coord>();
 			if d2.is_zero() {
 				continue;
 			}
 
-			let f = n1_mass.clone() * (n2_mass.clone() + T::one()) / d2 * kr.clone();
+			let f = n1_mass.clone() * (n2_mass.clone() + Coord::one()) / d2 * kr.clone();
 
 			izip!(n1_speed.iter_mut(), n2_speed.iter_mut(), di.iter()).for_each(
 				|(n1_speed, n2_speed, di)| {
@@ -51,7 +53,7 @@ pub fn apply_repulsion<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 }
 
 #[cfg(feature = "parallel")]
-pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout: &mut Layout<T>) {
+pub fn apply_repulsion_parallel(layout: &mut Layout) {
 	let kr = layout.settings.kr.clone();
 	let dimensions = layout.settings.dimensions;
 
@@ -59,7 +61,7 @@ pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout
 		chunk_iter.for_each(|n1_iter| {
 			let mut di = valloc(dimensions);
 			for n1 in n1_iter {
-				let n1_mass = n1.mass.clone() + T::one();
+				let n1_mass = n1.mass.clone() + Coord::one();
 				for n2 in n1.n2_iter {
 					di.clone_from_slice(n2.pos);
 
@@ -68,14 +70,14 @@ pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout
 						.zip(n1.pos.iter())
 						.map(|(di, n1_pos)| {
 							*di -= n1_pos.clone();
-							di.clone().pow_n(2u32)
+							(*di).powi(2)
 						})
-						.sum::<T>();
+						.sum::<Coord>();
 					if d2.is_zero() {
 						continue;
 					}
 
-					let f = n1_mass.clone() * (n2.mass.clone() + T::one()) / d2 * kr.clone();
+					let f = n1_mass.clone() * (n2.mass.clone() + Coord::one()) / d2 * kr.clone();
 
 					izip!(n1.speed.iter_mut(), n2.speed.iter_mut(), di.iter()).for_each(
 						|(n1_speed, n2_speed, di)| {
@@ -90,7 +92,7 @@ pub fn apply_repulsion_parallel<T: Coord + std::fmt::Debug + Send + Sync>(layout
 	}
 }
 
-pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_repulsion_2d(layout: &mut Layout) {
 	let kr = layout.settings.kr;
 	for Node {
 		mass: n1_mass,
@@ -100,7 +102,7 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 		..
 	} in layout.iter_nodes()
 	{
-		let n1_mass = *n1_mass + T::one();
+		let n1_mass = *n1_mass + Coord::one();
 		for Node2 {
 			mass: n2_mass,
 			pos: n2_pos,
@@ -116,7 +118,7 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = n1_mass * (*n2_mass + T::one()) / d2 * kr;
+			let f = n1_mass * (*n2_mass + Coord::one()) / d2 * kr;
 
 			let vx = f * dx;
 			let vy = f * dy;
@@ -129,14 +131,14 @@ pub fn apply_repulsion_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 }
 
 #[cfg(feature = "parallel")]
-pub fn apply_repulsion_2d_parallel<T: Copy + Coord + std::fmt::Debug + Send + Sync>(
-	layout: &mut Layout<T>,
+pub fn apply_repulsion_2d_parallel(
+	layout: &mut Layout,
 ) {
 	let kr = layout.settings.kr;
 	for chunk_iter in layout.iter_par_nodes(layout.settings.chunk_size.unwrap()) {
 		chunk_iter.for_each(|n1_iter| {
 			for n1 in n1_iter {
-				let n1_mass = *n1.mass + T::one();
+				let n1_mass = *n1.mass + Coord::one();
 				for n2 in n1.n2_iter {
 					let dx = unsafe { *n2.pos.get_unchecked(0) - *n1.pos.get_unchecked(0) };
 					let dy = unsafe { *n2.pos.get_unchecked(1) - *n1.pos.get_unchecked(1) };
@@ -146,7 +148,7 @@ pub fn apply_repulsion_2d_parallel<T: Copy + Coord + std::fmt::Debug + Send + Sy
 						continue;
 					}
 
-					let f = n1_mass * (*n2.mass + T::one()) / d2 * kr;
+					let f = n1_mass * (*n2.mass + Coord::one()) / d2 * kr;
 
 					let vx = f * dx;
 					let vy = f * dy;
@@ -160,171 +162,9 @@ pub fn apply_repulsion_2d_parallel<T: Copy + Coord + std::fmt::Debug + Send + Sy
 	}
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub fn apply_repulsion_2d_simd_f64(layout: &mut Layout<f64>) {
-	#[cfg(target_arch = "x86")]
-	use std::arch::x86::*;
-	#[cfg(target_arch = "x86_64")]
-	use std::arch::x86_64::*;
-
-	for (n1, (n1_mass, n1_pos_s)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
-		let mut n2_iter = layout.points.iter();
-		let n1_mass = n1_mass + 1.;
-		let n1_speed = unsafe {
-			layout
-				.speeds
-				.points
-				.as_mut_ptr()
-				.add(n1 * layout.settings.dimensions)
-		};
-		let n1_pos = unsafe {
-			_mm256_set_pd(
-				*n1_pos_s.get_unchecked(1),
-				*n1_pos_s.get_unchecked(0),
-				*n1_pos_s.get_unchecked(1),
-				*n1_pos_s.get_unchecked(0),
-			)
-		};
-
-		/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n1_pos), (
-			layout.points.get(n1)[0],
-			layout.points.get(n1)[1],
-			layout.points.get(n1)[0],
-			layout.points.get(n1)[1],
-		));*/
-
-		// This loop iterates on nodes by 2
-		let n2_max = n1 & (usize::MAX - 1);
-		let mut n2 = 0usize;
-		while n2 < n2_max {
-			unsafe {
-				// [n2_x, n2_y, n3_x, n3_y]
-				let n23_pos = _mm256_loadu_pd(n2_iter.next_unchecked(2));
-
-				/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(n23_pos), (
-					layout.points.get(n2)[0],
-					layout.points.get(n2)[1],
-					layout.points.get(n2+1)[0],
-					layout.points.get(n2+1)[1],
-				));*/
-
-				// [dx(n1,n2), dx(n1,n2), dx(n1,n2), dx(n1,n3)]
-				let dxy = _mm256_sub_pd(n23_pos, n1_pos);
-
-				/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(dxy), (
-					layout.points.get(n2)[0] - layout.points.get(n1)[0],
-					layout.points.get(n2)[1] - layout.points.get(n1)[1],
-					layout.points.get(n2+1)[0] - layout.points.get(n1)[0],
-					layout.points.get(n2+1)[1] - layout.points.get(n1)[1],
-				));*/
-
-				// ([dx(n1,n2)^2, dx(n1,n3)^2], [dy(n1,n2)^2, dy(n1,n3)^2])
-				let (dx2, dy2): (__m128d, __m128d) = std::mem::transmute(_mm256_permute4x64_pd(
-					_mm256_mul_pd(dxy, dxy),
-					_MM_PERM_DBCA,
-				));
-
-				/*assert_eq!((std::mem::transmute::<__m128d, (f64,f64)>(dx2), std::mem::transmute::<__m128d, (f64,f64)>(dy2)), (
-					(
-						(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2),
-						(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)
-					),
-					(
-						(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
-						(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2)
-					)
-				));*/
-
-				// [d(n1,n2), d(n1,n3)]
-				let d2 = _mm_add_pd(dx2, dy2);
-				// TODO maybe check zero
-
-				/*assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(d2), (
-					(layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2),
-					(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2),
-				));*/
-
-				let degs2 = n1_mass * (layout.masses.get_unchecked(n2) + 1.);
-				let degs3 = n1_mass * (layout.masses.get_unchecked(n2 + 1) + 1.);
-				let f = _mm_mul_pd(
-					_mm_div_pd(_mm_set_pd(degs3, degs2), d2),
-					_mm_set_pd(layout.settings.kr, layout.settings.kr),
-				);
-
-				/*assert_eq!(std::mem::transmute::<__m128d, (f64,f64)>(f), (
-					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
-					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr,
-				));*/
-
-				let n23_speed = layout
-					.speeds
-					.points
-					.as_mut_ptr()
-					.add(n2 * layout.settings.dimensions);
-				let (n1_speed_v, n23_speed_v): (__m128d, __m256d) =
-					(_mm_loadu_pd(n1_speed), _mm256_loadu_pd(n23_speed));
-
-				let fxy = _mm256_mul_pd(
-					dxy,
-					_mm256_permute4x64_pd(_mm256_set_m128d(f, f), _MM_PERM_DBCA),
-				);
-
-				/*assert_eq!(std::mem::transmute::<__m256d, (f64,f64,f64,f64)>(fxy), (
-					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[0] - layout.points.get(n1)[0]),
-					degs2/((layout.points.get(n2)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2)[1] - layout.points.get(n1)[1]),
-					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[0] - layout.points.get(n1)[0]),
-					degs3/((layout.points.get(n2+1)[0] - layout.points.get(n1)[0]).powi(2)+
-					(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]).powi(2))*layout.settings.kr*(layout.points.get(n2+1)[1] - layout.points.get(n1)[1]),
-				));*/
-
-				_mm256_storeu_pd(n23_speed, _mm256_add_pd(n23_speed_v, fxy));
-				_mm_store_pd(
-					n1_speed,
-					_mm_sub_pd(
-						n1_speed_v,
-						_mm_add_pd(_mm256_extractf128_pd(fxy, 1), _mm256_extractf128_pd(fxy, 0)),
-					),
-				);
-			}
-
-			n2 += 2;
-		}
-
-		// Remaining iteration (if n1 is odd)
-		if n1 & 1usize == 1usize {
-			let n2_pos = unsafe { layout.points.get_unchecked(n2) };
-
-			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos_s.get_unchecked(0) };
-			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos_s.get_unchecked(1) };
-
-			let d2 = dx * dx + dy * dy;
-			if d2.is_zero() {
-				continue;
-			}
-
-			let f = (n1_mass * (unsafe { layout.masses.get_unchecked(n2) } + 1.)) / d2
-				* layout.settings.kr;
-
-			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
-			let vx = f * dx;
-			let vy = f * dy;
-			unsafe { n1_speed.get_unchecked_mut(0) }.sub_assign(vx); // n1_speed[0] -= f * dx
-			unsafe { n1_speed.get_unchecked_mut(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
-			unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
-			unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
-		}
-	}
-}
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
+pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout) {
 	#[cfg(target_arch = "x86")]
 	use std::arch::x86::*;
 	#[cfg(target_arch = "x86_64")]
@@ -536,108 +376,9 @@ pub fn apply_repulsion_2d_simd_f32(layout: &mut Layout<f32>) {
 	}
 }
 
-#[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
-pub fn apply_repulsion_2d_simd_f64_parallel(layout: &mut Layout<f64>) {
-	#[cfg(target_arch = "x86")]
-	use std::arch::x86::*;
-	#[cfg(target_arch = "x86_64")]
-	use std::arch::x86_64::*;
-
-	let chunk_size = layout.settings.chunk_size.unwrap();
-	let kr = layout.settings.kr;
-	for chunk_iter in layout.iter_par_simd_nodes::<2>(chunk_size) {
-		chunk_iter.for_each(|n1_iter| {
-			for mut n1 in n1_iter {
-				let n1_mass = n1.mass + 1.;
-				let n1_pos = unsafe {
-					_mm256_set_pd(
-						*n1.pos.get_unchecked(1),
-						*n1.pos.get_unchecked(0),
-						*n1.pos.get_unchecked(1),
-						*n1.pos.get_unchecked(0),
-					)
-				};
-
-				// This loop iterates on nodes by 2
-				for n2 in &mut n1.n2_iter {
-					unsafe {
-						// [n2_x, n2_y, n3_x, n3_y]
-						let n23_pos = _mm256_loadu_pd(n2.pos);
-
-						// [dx(n1,n2), dx(n1,n2), dx(n1,n2), dx(n1,n3)]
-						let dxy = _mm256_sub_pd(n23_pos, n1_pos);
-
-						// ([dx(n1,n2)^2, dx(n1,n3)^2], [dy(n1,n2)^2, dy(n1,n3)^2])
-						let (dx2, dy2): (__m128d, __m128d) = std::mem::transmute(
-							_mm256_permute4x64_pd(_mm256_mul_pd(dxy, dxy), _MM_PERM_DBCA),
-						);
-
-						// [d(n1,n2), d(n1,n3)]
-						let d2 = _mm_add_pd(dx2, dy2);
-						// TODO maybe check zero
-
-						let degs2 = n1_mass * (*n2.mass + 1.);
-						let degs3 = n1_mass * (*n2.mass.add(1) + 1.);
-						let f = _mm_mul_pd(
-							_mm_div_pd(_mm_set_pd(degs3, degs2), d2),
-							_mm_set_pd(kr, kr),
-						);
-
-						let (n1_speed_v, n23_speed_v): (__m128d, __m256d) =
-							(_mm_loadu_pd(n1.speed), _mm256_loadu_pd(n2.speed));
-
-						let fxy = _mm256_mul_pd(
-							dxy,
-							_mm256_permute4x64_pd(_mm256_set_m128d(f, f), _MM_PERM_DBCA),
-						);
-
-						_mm256_storeu_pd(n2.speed, _mm256_add_pd(n23_speed_v, fxy));
-						_mm_store_pd(
-							n1.speed,
-							_mm_sub_pd(
-								n1_speed_v,
-								_mm_add_pd(
-									_mm256_extractf128_pd(fxy, 1),
-									_mm256_extractf128_pd(fxy, 0),
-								),
-							),
-						);
-					}
-				}
-
-				// Remaining iteration
-				let layout = unsafe { n1.n2_iter.layout.0.as_mut() };
-				for n2 in n1.n2_iter.ind
-					..(n1.n2_iter.ind + (n1.n2_iter.ind - n1.ind + 1) / 4 * 4 + 4)
-						.min(layout.masses.len())
-				{
-					let n2_pos = unsafe { layout.points.get_unchecked(n2) };
-
-					let dx = unsafe { *n2_pos.get_unchecked(0) - *n1.pos.get_unchecked(0) };
-					let dy = unsafe { *n2_pos.get_unchecked(1) - *n1.pos.get_unchecked(1) };
-
-					let d2 = dx * dx + dy * dy;
-					if d2.is_zero() {
-						continue;
-					}
-
-					let f = (n1_mass * (unsafe { layout.masses.get_unchecked(n2) } + 1.)) / d2 * kr;
-
-					let n2_speed = layout.speeds.get_mut(n2);
-					let vx = f * dx;
-					let vy = f * dy;
-					unsafe { *n1.speed }.sub_assign(vx); // n1_speed[0] -= f * dx
-					unsafe { *n1.speed.add(1) }.sub_assign(vy); // n1_speed[1] -= f * dy
-					unsafe { n2_speed.get_unchecked_mut(0) }.add_assign(vx); // n2_speed[0] += f * dx
-					unsafe { n2_speed.get_unchecked_mut(1) }.add_assign(vy); // n2_speed[1] += f * dy
-				}
-			}
-		});
-	}
-}
 
 #[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
-pub fn apply_repulsion_2d_simd_f32_parallel(layout: &mut Layout<f32>) {
+pub fn apply_repulsion_2d_simd_f32_parallel(layout: &mut Layout) {
 	#[cfg(target_arch = "x86")]
 	use std::arch::x86::*;
 	#[cfg(target_arch = "x86_64")]
@@ -747,10 +488,10 @@ pub fn apply_repulsion_2d_simd_f32_parallel(layout: &mut Layout<f32>) {
 	}
 }
 
-pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_repulsion_3d(layout: &mut Layout) {
 	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_mass = *n1_mass + T::one();
+		let n1_mass = *n1_mass + Coord::one();
 		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			let dx = unsafe { *n2_pos.get_unchecked(0) - *n1_pos.get_unchecked(0) };
 			let dy = unsafe { *n2_pos.get_unchecked(1) - *n1_pos.get_unchecked(1) };
@@ -761,7 +502,7 @@ pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 				continue;
 			}
 
-			let f = n1_mass * (*unsafe { layout.masses.get_unchecked(n2) } + T::one()) / d2
+			let f = n1_mass * (*unsafe { layout.masses.get_unchecked(n2) } + Coord::one()) / d2
 				* layout.settings.kr;
 
 			let (n1_speed, n2_speed) = layout.speeds.get_2_mut(n1, n2);
@@ -775,18 +516,19 @@ pub fn apply_repulsion_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout
 	}
 }
 
-pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_repulsion_po(layout: &mut Layout) {
 	let mut di = valloc(layout.settings.dimensions);
-	let (node_size, krprime) = unsafe {
+	let (node_size, krprime) = {
 		layout
 			.settings
 			.prevent_overlapping
 			.as_ref()
-			.unwrap_unchecked()
+            // TODO - consider further `hint::unreachable_unchecked()` hinting as an optimization
+			.unwrap()
 	};
 	for (n1, (n1_mass, n1_pos)) in layout.masses.iter().zip(layout.points.iter()).enumerate() {
 		let mut n2_iter = layout.points.iter();
-		let n1_mass = n1_mass.clone() + T::one();
+		let n1_mass = n1_mass.clone() + Coord::one();
 		n2_iter.offset = (n1 + 1) * layout.settings.dimensions;
 		for (n2, n2_pos) in (0..n1).zip(&mut n2_iter) {
 			di.clone_from_slice(n2_pos);
@@ -796,9 +538,9 @@ pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 				.zip(n1_pos.iter())
 				.map(|(di, n1_pos)| {
 					*di -= n1_pos.clone();
-					di.clone().pow_n(2u32)
+					(*di).powi(2)
 				})
-				.sum::<T>();
+				.sum::<Coord>();
 			if d2.is_zero() {
 				continue;
 			}
@@ -807,8 +549,8 @@ pub fn apply_repulsion_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 			let dprime = d.clone() - node_size.clone();
 
 			let f = n1_mass.clone()
-				* (unsafe { layout.masses.get_unchecked(n2) }.clone() + T::one())
-				/ d2 * if dprime.positive() {
+				* (unsafe { layout.masses.get_unchecked(n2) }.clone() + Coord::one())
+				/ d2 * if dprime.is_sign_positive() {
 				layout.settings.kr.clone() / dprime
 			} else {
 				krprime.clone()

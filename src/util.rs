@@ -1,27 +1,13 @@
-use maths_traits::{
-	algebra::group_like::{
-		additive::Sub,
-		multiplicative::{Div, DivAssign},
-	},
-	analysis::{ordered::Signed, RealExponential},
-};
-use num_traits::cast::{FromPrimitive, NumCast};
+use num_traits::cast::{ NumCast};
 #[cfg(feature = "rand")]
 use rand::Rng;
+use num_traits::{Zero};
+use std::ops::Neg;
 
-pub trait Coord = Clone
-	+ Div<Self, Output = Self>
-	+ DivAssign<Self>
-	+ FromPrimitive
-	+ NumCast
-	//	+ From<f32>
-	+ Signed
-	+ RealExponential
-	+ Sub<Self>
-	+ std::iter::Sum;
+pub type Coord = f32;
 
 /// n-dimensional position
-pub type Position<T> = [T];
+pub type Position = [Coord];
 
 pub fn clone_slice_mut<T: Clone>(s: &[T]) -> Vec<T> {
 	let mut v = valloc::<T>(s.len());
@@ -35,13 +21,13 @@ pub fn clone_slice_mut<T: Clone>(s: &[T]) -> Vec<T> {
 
 pub type Edge = (usize, usize);
 
-pub enum Nodes<T> {
-	Mass(Vec<T>),
+pub enum Nodes {
+	Mass(Vec<Coord>),
 	Degree(usize),
 }
 
-pub fn norm<T: Coord>(n: &Position<T>) -> T {
-	n.iter().map(|i| i.clone().pow_n(2u32)).sum::<T>().sqrt()
+pub fn norm(n: &Position) -> Coord {
+	n.iter().map(|i| (*i).powi(2)).sum::<Coord>().sqrt()
 }
 
 /// Allocate Vec without initializing
@@ -63,26 +49,26 @@ pub(crate) unsafe fn split_at_mut_unchecked<T>(s: &mut [T], mid: usize) -> (&mut
 	)
 }
 
-pub struct PointIter<'a, T> {
+pub struct PointIter<'a> {
 	pub dimensions: usize,
 	pub offset: usize,
-	pub list: &'a Vec<T>,
+	pub list: &'a Vec<Coord>,
 }
 
-impl<'a, T> PointIter<'a, T> {
+impl<'a> PointIter<'a> {
 	/// Returns a raw pointer to the next element, and increments the counter by `n`.
 	///
 	/// # Safety
 	/// Returned pointer may overflow the data.
-	pub unsafe fn next_unchecked(&mut self, n: usize) -> *const T {
+	pub unsafe fn next_unchecked(&mut self, n: usize) -> *const Coord {
 		let ptr = self.list.as_ptr().add(self.offset);
 		self.offset += self.dimensions * n;
 		ptr
 	}
 }
 
-impl<'a, T> Iterator for PointIter<'a, T> {
-	type Item = &'a [T];
+impl<'a> Iterator for PointIter<'a> {
+	type Item = &'a [Coord];
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.offset >= self.list.len() {
@@ -97,20 +83,20 @@ impl<'a, T> Iterator for PointIter<'a, T> {
 	}
 }
 
-pub struct PointIterMut<'a, T> {
+pub struct PointIterMut<'a> {
 	pub dimensions: usize,
 	pub offset: usize,
-	pub list: &'a mut Vec<T>,
+	pub list: &'a mut Vec<Coord>,
 }
 
-impl<'a, T> Iterator for PointIterMut<'a, T> {
-	type Item = &'a mut [T];
+impl<'a> Iterator for PointIterMut<'a> {
+	type Item = &'a mut [Coord];
 
 	fn next<'b>(&'b mut self) -> Option<Self::Item> {
 		if self.offset >= self.list.len() {
 			return None;
 		}
-		let ret: &'b mut [T] = unsafe {
+		let ret: &'b mut [Coord] = unsafe {
 			self.list
 				.get_unchecked_mut(self.offset..self.offset + self.dimensions)
 		};
@@ -120,41 +106,41 @@ impl<'a, T> Iterator for PointIterMut<'a, T> {
 }
 
 #[derive(Clone)]
-pub struct PointList<T: Coord> {
+pub struct PointList {
 	/// Number of coordinates in a vector
 	pub dimensions: usize,
 	/// List of the coordinates of the vectors
-	pub points: Vec<T>,
+	pub points: Vec<Coord>,
 }
 
-impl<'a, T: Coord> PointList<T> {
-	pub fn get(&'a self, n: usize) -> &'a Position<T> {
+impl<'a> PointList {
+	pub fn get(&'a self, n: usize) -> &'a Position {
 		let offset = n * self.dimensions;
 		&self.points[offset..offset + self.dimensions]
 	}
 
 	/// # Safety
 	/// `n` must be in bounds.
-	pub unsafe fn get_unchecked(&'a self, n: usize) -> &'a Position<T> {
+	pub unsafe fn get_unchecked(&'a self, n: usize) -> &'a Position {
 		let offset = n * self.dimensions;
 		&self.points.get_unchecked(offset..offset + self.dimensions)
 	}
 
-	pub fn get_clone(&self, n: usize) -> Vec<T> {
+	pub fn get_clone(&self, n: usize) -> Vec<Coord> {
 		clone_slice_mut(self.get(n))
 	}
 
-	pub fn get_clone_slice(&self, n: usize, v: &mut [T]) {
+	pub fn get_clone_slice(&self, n: usize, v: &mut [Coord]) {
 		v.clone_from_slice(self.get(n))
 	}
 
-	pub fn get_mut(&mut self, n: usize) -> &mut Position<T> {
+	pub fn get_mut(&mut self, n: usize) -> &mut Position {
 		let offset = n * self.dimensions;
 		&mut self.points[offset..offset + self.dimensions]
 	}
 
 	/// n1 < n2
-	pub fn get_2_mut(&mut self, n1: usize, n2: usize) -> (&mut Position<T>, &mut Position<T>) {
+	pub fn get_2_mut(&mut self, n1: usize, n2: usize) -> (&mut Position, &mut Position) {
 		let offset1 = n1 * self.dimensions;
 		let offset2 = n2 * self.dimensions;
 		unsafe {
@@ -166,12 +152,12 @@ impl<'a, T: Coord> PointList<T> {
 		}
 	}
 
-	pub fn set(&mut self, n: usize, val: &Position<T>) {
+	pub fn set(&mut self, n: usize, val: &Position) {
 		let offset = n * self.dimensions;
 		self.points[offset..offset + self.dimensions].clone_from_slice(val);
 	}
 
-	pub fn iter(&self) -> PointIter<T> {
+	pub fn iter(&self) -> PointIter {
 		PointIter {
 			dimensions: self.dimensions,
 			list: &self.points,
@@ -179,7 +165,7 @@ impl<'a, T: Coord> PointList<T> {
 		}
 	}
 
-	pub fn iter_from(&self, offset: usize) -> PointIter<T> {
+	pub fn iter_from(&self, offset: usize) -> PointIter {
 		PointIter {
 			dimensions: self.dimensions,
 			list: &self.points,
@@ -187,7 +173,7 @@ impl<'a, T: Coord> PointList<T> {
 		}
 	}
 
-	pub fn iter_mut(&mut self) -> PointIterMut<T> {
+	pub fn iter_mut(&mut self) -> PointIterMut {
 		PointIterMut {
 			dimensions: self.dimensions,
 			list: &mut self.points,
@@ -195,7 +181,7 @@ impl<'a, T: Coord> PointList<T> {
 		}
 	}
 
-	pub fn iter_mut_from(&mut self, offset: usize) -> PointIterMut<T> {
+	pub fn iter_mut_from(&mut self, offset: usize) -> PointIterMut {
 		PointIterMut {
 			dimensions: self.dimensions,
 			list: &mut self.points,
@@ -208,20 +194,19 @@ impl<'a, T: Coord> PointList<T> {
 ///
 /// `n` is the number of spatial dimensions (1 => two points; 2 => circle; 3 => sphere; etc.).
 #[cfg(feature = "rand")]
-pub fn _sample_unit_nsphere<T: Coord + Clone + DivAssign<T> + RealExponential, R: Rng>(
+pub fn _sample_unit_nsphere<R: Rng>(
 	rng: &mut R,
 	n: usize,
-) -> Vec<T>
+) -> Vec<Coord>
 where
-	rand::distributions::Standard: rand::distributions::Distribution<T>,
-	T: rand::distributions::uniform::SampleUniform + PartialOrd,
+	rand::distributions::Standard: rand::distributions::Distribution<Coord>,
 {
-	let ray: T = NumCast::from(n).unwrap();
+	let ray: Coord = NumCast::from(n).unwrap();
 	let mut v = valloc(n);
-	let mut d = T::zero();
+	let mut d = Coord::zero();
 	for x in v.iter_mut() {
 		*x = rng.gen_range(ray.clone().neg()..ray.clone());
-		d += x.clone().pow_n(2u32);
+		d += (*x).powi(2);
 	}
 	d = d.sqrt();
 	for x in v.iter_mut() {
@@ -234,15 +219,14 @@ where
 ///
 /// `n` is the number of spatial dimensions (1 => segment; 2 => square; 3 => cube; etc.).
 #[cfg(feature = "rand")]
-pub fn sample_unit_ncube<T: Coord + Clone + DivAssign<T> + RealExponential, R: Rng>(
+pub fn sample_unit_ncube<R: Rng>(
 	rng: &mut R,
 	n: usize,
-) -> Vec<T>
+) -> Vec<Coord>
 where
-	rand::distributions::Standard: rand::distributions::Distribution<T>,
-	T: rand::distributions::uniform::SampleUniform + PartialOrd,
+	rand::distributions::Standard: rand::distributions::Distribution<Coord>,
 {
-	let ray: T = NumCast::from(n).unwrap();
+	let ray: Coord = NumCast::from(n).unwrap();
 	let mut v = valloc(n);
 	for x in v.iter_mut() {
 		*x = rng.gen_range(ray.clone().neg()..ray.clone());

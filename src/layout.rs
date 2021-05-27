@@ -2,15 +2,16 @@ use crate::{iter::*, util::*};
 
 use rayon::prelude::*;
 use std::marker::PhantomData;
+use num_traits::One;
 
 #[derive(Clone)]
-pub struct Settings<T: Coord> {
+pub struct Settings {
 	/// Optimize repulsion using Barnes-Hut algorithm (time passes from N^2 to NlogN)
 	/// The argument is theta.
 	///
 	/// **Note**: only implemented for `T=f64` and `dimension` 2 or 3.
 	#[cfg(feature = "barnes_hut")]
-	pub barnes_hut: Option<T>,
+	pub barnes_hut: Option<Coord>,
 	/// Number of nodes computed by each thread
 	///
 	/// Only used in repulsion computation. Set to `None` to turn off parallelization.
@@ -25,23 +26,23 @@ pub struct Settings<T: Coord> {
 	/// Move hubs (high degree nodes) to the center
 	pub dissuade_hubs: bool,
 	/// Attraction coefficient
-	pub ka: T,
+	pub ka: Coord,
 	/// Gravity coefficient
-	pub kg: T,
+	pub kg: Coord,
 	/// Repulsion coefficient
-	pub kr: T,
+	pub kr: Coord,
 	/// Logarithmic attraction
 	pub lin_log: bool,
 	/// Prevent node overlapping for a prettier graph (node_size, kr_prime).
 	///
 	/// `node_size` is the radius around a node where the repulsion coefficient is `kr_prime`.
 	/// `kr_prime` is arbitrarily set to `100.0` in Gephi implementation.
-	pub prevent_overlapping: Option<(T, T)>,
+	pub prevent_overlapping: Option<(Coord, Coord)>,
 	/// Gravity does not decrease with distance, resulting in a more compact graph.
 	pub strong_gravity: bool,
 }
 
-impl<T: Coord> Default for Settings<T> {
+impl Default for Settings {
 	fn default() -> Self {
 		Self {
 			#[cfg(feature = "barnes_hut")]
@@ -50,9 +51,9 @@ impl<T: Coord> Default for Settings<T> {
 			chunk_size: Some(256),
 			dimensions: 2,
 			dissuade_hubs: false,
-			ka: T::one(),
-			kg: T::one(),
-			kr: T::one(),
+			ka: Coord::one(),
+			kg: Coord::one(),
+			kr: Coord::one(),
 			lin_log: false,
 			prevent_overlapping: None,
 			strong_gravity: false,
@@ -60,22 +61,22 @@ impl<T: Coord> Default for Settings<T> {
 	}
 }
 
-pub struct Layout<T: Coord> {
+pub struct Layout {
 	pub edges: Vec<Edge>,
-	pub masses: Vec<T>,
+	pub masses: Vec<Coord>,
 	/// List of the nodes' positions
-	pub points: PointList<T>,
-	pub(crate) settings: Settings<T>,
-	pub speeds: PointList<T>,
-	pub old_speeds: PointList<T>,
+	pub points: PointList,
+	pub(crate) settings: Settings,
+	pub speeds: PointList,
+	pub old_speeds: PointList,
 
 	pub(crate) fn_attraction: fn(&mut Self),
 	pub(crate) fn_gravity: fn(&mut Self),
 	pub(crate) fn_repulsion: fn(&mut Self),
 }
 
-impl<T: Coord> Layout<T> {
-	pub fn iter_nodes(&mut self) -> NodeIter<T> {
+impl Layout {
+	pub fn iter_nodes(&mut self) -> NodeIter {
 		NodeIter {
 			ind: 0,
 			layout: SendPtr(self.into()),
@@ -86,11 +87,11 @@ impl<T: Coord> Layout<T> {
 }
 
 #[cfg(feature = "parallel")]
-impl<T: Coord + Send> Layout<T> {
+impl Layout {
 	pub fn iter_par_nodes(
 		&mut self,
 		chunk_size: usize,
-	) -> impl Iterator<Item = impl ParallelIterator<Item = NodeParIter<T>>> {
+	) -> impl Iterator<Item = impl ParallelIterator<Item = NodeParIter>> {
 		let ptr = SendPtr(self.into());
 		let dimensions = self.settings.dimensions;
 		let chunk_size_d = chunk_size * dimensions;
@@ -118,11 +119,11 @@ impl<T: Coord + Send> Layout<T> {
 }
 
 #[cfg(all(feature = "parallel", any(target_arch = "x86", target_arch = "x86_64")))]
-impl<T: Coord + Send> Layout<T> {
+impl Layout {
 	pub fn iter_par_simd_nodes<const N: usize>(
 		&mut self,
 		chunk_size: usize,
-	) -> impl Iterator<Item = impl ParallelIterator<Item = NodeParSimdIter<T, N>>> {
+	) -> impl Iterator<Item = impl ParallelIterator<Item = NodeParSimdIter<N>>> {
 		let ptr = SendPtr(self.into());
 		let dimensions = self.settings.dimensions;
 		let chunk_size_d = chunk_size * dimensions;
@@ -161,7 +162,7 @@ mod test {
 	fn test_iter_nodes() {
 		for n_nodes in 1usize..16 {
 			let mut layout =
-				Layout::<f32>::from_graph(vec![], Nodes::Degree(n_nodes), Settings::default());
+				Layout::from_graph(vec![], Nodes::Degree(n_nodes), Settings::default());
 			let mut hits = iproduct!(0..n_nodes, 0..n_nodes)
 				.filter(|(n1, n2)| n1 < n2)
 				.collect::<BTreeSet<(usize, usize)>>();
@@ -181,7 +182,7 @@ mod test {
 	#[cfg(feature = "parallel")]
 	fn test_iter_par_nodes() {
 		for n_nodes in 1usize..16 {
-			let mut layout = Layout::<f32>::from_graph(
+			let mut layout = Layout::from_graph(
 				vec![],
 				Nodes::Mass((1..n_nodes + 1).map(|i| i as f32).collect()),
 				Settings::default(),
@@ -222,7 +223,7 @@ mod test {
 	#[cfg(feature = "parallel")]
 	fn test_iter_par_simd_nodes() {
 		for n_nodes in 1usize..32 {
-			let mut layout = Layout::<f32>::from_graph(
+			let mut layout = Layout::from_graph(
 				vec![],
 				Nodes::Mass((1..n_nodes + 1).map(|i| i as f32).collect()),
 				Settings::default(),

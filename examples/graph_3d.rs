@@ -252,7 +252,7 @@ fn main() {
 	}
 
 	// Compute layout
-	let mut layout = Layout::<f64>::from_graph(
+	let mut layout = Layout::from_graph(
 		edges,
 		Nodes::Degree(nb_nodes),
 		Settings {

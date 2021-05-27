@@ -1,58 +1,16 @@
-# ForceAtlas2 Rust
+# ForceAtlas2 Rust Minimal
 
-Very fast implementation of [ForceAtlas2](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4051631/) &#8211; force-directed Continuous Graph Layout Algorithm for Handy Network Visualization (i.e. position the nodes of a n-dimension graph for drawing it more human-readably)
+A fork of [ForceAtlas2 Rust](https://framagit.org/ZettaScript/forceatlas2-rs)
+that compiles on stable Rust.  Supports *only* `f32` type coordinates, and has
+dropped all optimizations dependent on nightly Rust.
 
-![Example graph spacialized with ForceAtlas2-rs](https://txmn.tk/img/wot-fa2rs.png)
+## Known Issues
 
-## Optimization
+These issues were discovered at time of fork, and have yet to be remedied.
 
-The implementations used depend on the type and the parameters. The most optimized is a `Copy` type with `prevent_overlapping` and `barnes_hut` disabled, in 2D or 3D. Some specializations are not implemented yet. `x86` and `x86_64` processors with support to `avx2` use SIMD to compute faster on the `f64` or `f32`, 2D, `prevent_overlapping` disabled and `barnes_hut` disabled case.
-
-TL;DR If you want best performance, use the following:
-* CPU: `x86` or `x86_64` with `avx2`
-* `Layout<f32>` (`Layout<f64>` should be ~2 times slower)
-* `Settings::prevent_overlapping: None`
-* `Settings::barnes_hut: false` (or just don't use this feature)
-* `RUSTFLAGS='-C target-feature=+avx2'`
-
-Use the `barnes_hut` feature to turn repulsion from O(n^2) to O(n×log(n)) (only for 2D/3D and `f64`/`f32`). However, some optimizations like SIMD are not available with Barnes-Hut.
-
-Parallelization is implemented for all the cases without other `barnes_hut` and `prevent_overlapping`. The bigger is your graph, the more interesting is the parallel mode. Tune it with `Settings::chunk_size`. You can control the number of threads with `rayon::ThreadPoolBuilder`. Parallel SIMD is still a bit unstable, turn it off if it causes trouble.
-
-## Examples
-
-[Install Rustup](https://rustup.rs/) and switch to nightly:
-
-    rustup toolchain install nightly && rustup default nightly
-
-A packet may be needed to draw graph:
-
-    sudo apt install libfreetype6-dev
-
-Clone repository:
-
-    git clone https://framagit.org/ZettaScript/forceatlas2-rs && cd forceatlas2-rs
-
-Build example: (`examples/wot.csv` file lists the edges of a directed graph, in two columns)
-
-    RUSTFLAGS='-C target-feature=+avx2' cargo build --release --example csv_import
-    ./target/release/examples/csv_import examples/wot.csv
-
-Output images are in `target` directory.
-
-## Comparison
-
-Python (forceatlas2, fa2) and JS (sigma.js) implementations are slow.
-
-Java implementation (Gephi) does not use SIMD.
-
-Julia implementation (Anim-Wotmap) beats them all and uses SIMD, but is still slower than this one.
-
-If you know any faster comparable force-directed layout implementation, please let me know.
-
-## Bindings
-
-There is a binding for use in Python, [fa2rs](https://framagit.org/ZettaScript/fa2rs-py).
+* The unit tests do not all pass.
+* Not all combinations of features compile cleanly.
+* Examples depend on system packages.
 
 ## License
 

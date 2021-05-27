@@ -1,8 +1,10 @@
 use crate::{layout::Layout, util::*};
 
 use itertools::izip;
+use num_traits::{Zero};
+use std::ops::{AddAssign, SubAssign};
 
-pub fn apply_attraction<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction(layout: &mut Layout) {
 	let mut di_v = valloc(layout.settings.dimensions);
 	let di = di_v.as_mut_slice();
 	for (n1, n2) in layout.edges.iter() {
@@ -25,7 +27,7 @@ pub fn apply_attraction<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	}
 }
 
-pub fn apply_attraction_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_2d(layout: &mut Layout) {
 	for (n1, n2) in layout.edges.iter() {
 		let (n1, n2) = (*n1, *n2);
 
@@ -46,7 +48,7 @@ pub fn apply_attraction_2d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layou
 	}
 }
 
-pub fn apply_attraction_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_3d(layout: &mut Layout) {
 	for (n1, n2) in layout.edges.iter() {
 		let (n1, n2) = (*n1, *n2);
 
@@ -71,7 +73,7 @@ pub fn apply_attraction_3d<T: Copy + Coord + std::fmt::Debug>(layout: &mut Layou
 	}
 }
 
-pub fn apply_attraction_dh<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_dh(layout: &mut Layout) {
 	for (n1, n2) in layout.edges.iter() {
 		let n1_speed = layout.speeds.get_mut(*n1);
 		let n1_pos = layout.points.get(*n1);
@@ -91,14 +93,14 @@ pub fn apply_attraction_dh<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	}
 }
 
-pub fn apply_attraction_log<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_log(layout: &mut Layout) {
 	for (n1, n2) in layout.edges.iter() {
-		let mut d = T::zero();
+		let mut d = Coord::zero();
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
 		for (di, n1) in di.iter_mut().zip(layout.points.get(*n1)) {
 			*di -= n1.clone();
-			d += di.clone().pow_n(2u32);
+			d += (*di).powi(2);
 		}
 		if d.is_zero() {
 			continue;
@@ -118,14 +120,14 @@ pub fn apply_attraction_log<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) 
 	}
 }
 
-pub fn apply_attraction_dh_log<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_dh_log(layout: &mut Layout) {
 	for (n1, n2) in layout.edges.iter() {
-		let mut d = T::zero();
+		let mut d = Coord::zero();
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
 		for (di, n1) in di.iter_mut().zip(layout.points.get(*n1)) {
 			*di -= n1.clone();
-			d += di.clone().pow_n(2u32);
+			d += (*di).powi(2);
 		}
 		if d.is_zero() {
 			continue;
@@ -146,21 +148,21 @@ pub fn apply_attraction_dh_log<T: Coord + std::fmt::Debug>(layout: &mut Layout<T
 	}
 }
 
-pub fn apply_attraction_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_po(layout: &mut Layout) {
 	let node_size = &layout.settings.prevent_overlapping.as_ref().unwrap().0;
 	for (n1, n2) in layout.edges.iter() {
-		let mut d = T::zero();
+		let mut d = Coord::zero();
 		let n1_pos = layout.points.get(*n1);
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
 		for i in 0usize..layout.settings.dimensions {
 			di[i] -= n1_pos[i].clone();
-			d += di[i].clone().pow_n(2u32);
+			d += (di[i]).powi(2);
 		}
 		d = d.sqrt();
 
 		let dprime = d.clone() - node_size.clone();
-		if dprime.non_positive() {
+		if !dprime.is_sign_positive() {
 			continue;
 		}
 		let f = dprime / d * layout.settings.ka.clone();
@@ -176,21 +178,21 @@ pub fn apply_attraction_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
 	}
 }
 
-pub fn apply_attraction_dh_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_dh_po(layout: &mut Layout) {
 	let node_size = &layout.settings.prevent_overlapping.as_ref().unwrap().0;
 	for (n1, n2) in layout.edges.iter() {
-		let mut d = T::zero();
+		let mut d = Coord::zero();
 		let n1_pos = layout.points.get(*n1);
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
 		for i in 0usize..layout.settings.dimensions {
 			di[i] -= n1_pos[i].clone();
-			d += di[i].clone().pow_n(2u32);
+			d += (di[i]).powi(2);
 		}
 		d = d.sqrt();
 
 		let dprime = d.clone() - node_size.clone();
-		if dprime.non_positive() {
+		if !dprime.is_sign_positive() {
 			dbg!(dprime);
 			continue;
 		}
@@ -208,21 +210,21 @@ pub fn apply_attraction_dh_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>
 	}
 }
 
-pub fn apply_attraction_log_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_log_po(layout: &mut Layout) {
 	let node_size = &layout.settings.prevent_overlapping.as_ref().unwrap().0;
 	for (n1, n2) in layout.edges.iter() {
-		let mut d = T::zero();
+		let mut d = Coord::zero();
 		let n1_pos = layout.points.get(*n1);
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
 		for i in 0usize..layout.settings.dimensions {
 			di[i] -= n1_pos[i].clone();
-			d += di[i].clone().pow_n(2u32);
+			d += (di[i]).powi(2);
 		}
 		d = d.sqrt();
 
 		let dprime = d - node_size.clone();
-		if dprime.non_positive() {
+		if !dprime.is_sign_positive() {
 			continue;
 		}
 		let f = dprime.clone().ln_1p() / dprime * layout.settings.ka.clone();
@@ -238,21 +240,21 @@ pub fn apply_attraction_log_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T
 	}
 }
 
-pub fn apply_attraction_dh_log_po<T: Coord + std::fmt::Debug>(layout: &mut Layout<T>) {
+pub fn apply_attraction_dh_log_po(layout: &mut Layout) {
 	let node_size = &layout.settings.prevent_overlapping.as_ref().unwrap().0;
 	for (n1, n2) in layout.edges.iter() {
-		let mut d = T::zero();
+		let mut d = Coord::zero();
 		let n1_pos = layout.points.get(*n1);
 		let mut di_v = layout.points.get_clone(*n2);
 		let di = di_v.as_mut_slice();
 		for i in 0usize..layout.settings.dimensions {
 			di[i] -= n1_pos[i].clone();
-			d += di[i].clone().pow_n(2u32);
+			d += (di[i]).powi(2);
 		}
 		d = d.sqrt();
 
 		let dprime = d - node_size.clone();
-		if dprime.non_positive() {
+		if !dprime.is_sign_positive() {
 			continue;
 		}
 		let n1_mass = layout.masses.get(*n1).unwrap().clone();
